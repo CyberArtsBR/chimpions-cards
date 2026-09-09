@@ -41,12 +41,25 @@ function bindNav(){
 function bindImages(){document.querySelectorAll('img').forEach(img=>{img.addEventListener('error',()=>{if(img.src!==placeholder)img.src=placeholder},{once:true})})}
 function preload(url){if(!url)return;const i=new Image();i.src=url}
 function currentMode(){return document.querySelector('[name="mode"]:checked')?.value||MODES.tactical}
+function topAttribute(c){
+  return ATTRIBUTES.reduce((best,a)=>c.stats[a]>c.stats[best]?a:best,ATTRIBUTES[0]);
+}
+function heroCards(){
+  const picks=[cards[29],cards[99],cards[196]].filter(Boolean);
+  return picks.map((c,i)=>{
+    const top=topAttribute(c);
+    return `<article class="hero-chimp-card hc${i+1}">
+      <div class="hero-chimp-art"><img src="${c.image}" alt="" loading="eager"></div>
+      <div class="hero-chimp-meta"><span>#${String(c.id).padStart(3,'0')}</span><b>${escapeHtml(c.name)}</b><em>${top} ${c.stats[top]}</em></div>
+    </article>`
+  }).join('');
+}
 
 function menu(){
   screen='menu';
   const v=manifest?validateCollection(manifest):null;
-  const collectionNote=v&&v.expected&&v.count!==v.expected?`<div class="notice">Official API snapshot: ${v.count}/${v.expected} advertised Chimpions available. Gameplay uses every API card; collection-wide balance remains provisional until the source discrepancy is resolved.</div>`:'';
-  app.innerHTML=nav()+`<main class="hero"><div class="hero-copy"><div class="eyebrow">1/1 ANIMATED CHIMPIONS • COMPETITIVE CARD BATTLE</div><h1>Every Chimpion<br><em>has a way to win.</em></h1><p>Read the matchup, pick the edge, and claim the standoff pot.</p><fieldset class="mode-picker"><legend>Ruleset</legend><label><input type="radio" name="mode" value="classic"><span><b>Classic</b><small>Traditional • winner chooses next</small></span></label><label><input type="radio" name="mode" value="tactical" checked><span><b>Tactical ★</b><small>Recommended • alternating turns • no repeat • 1 reserve swap</small></span></label></fieldset><div class="actions"><button class="primary" id="quick">Play vs CPU</button><button id="onlineBtn">Private 1v1</button></div><div class="features"><span>⚡ 5–8 min matches</span><span>◆ Equal stat budget</span><span>◎ Animated originals</span></div>${collectionNote}</div><div class="hero-card-stack" aria-hidden="true"><div class="mini-card mc1">POWER</div><div class="mini-card mc2">MYSTIQUE</div><div class="mini-card mc3">TECH</div></div></main>`;
+  const collectionNote=v?`<div class="collection-status"><span class="live-dot"></span><b>${v.count} playable Chimpions</b><small>Official API collection snapshot</small></div>`:'';
+  app.innerHTML=nav()+`<main class="hero"><div class="hero-copy"><div class="eyebrow">${cards.length} ANIMATED CHIMPIONS • COMPETITIVE CARD BATTLE</div><h1>Every Chimpion<br><em>has a way to win.</em></h1><p>Read the matchup, pick the edge, and claim the standoff pot.</p><fieldset class="mode-picker"><legend>Ruleset</legend><label><input type="radio" name="mode" value="classic"><span><b>Classic</b><small>Traditional • winner chooses next</small></span></label><label><input type="radio" name="mode" value="tactical" checked><span><b>Tactical ★</b><small>Recommended • alternating turns • no repeat • 1 reserve swap</small></span></label></fieldset><div class="actions"><button class="primary" id="quick">Play vs CPU</button><button id="onlineBtn">Private 1v1</button></div><div class="features"><span>⚡ 5–8 min matches</span><span>◆ Equal stat budget</span><span>◎ Animated originals</span></div>${collectionNote}</div><div class="hero-card-stack" aria-hidden="true">${heroCards()}<div class="hero-glow"></div></div></main>`;
   $('#quick').onclick=()=>{ensureAudio();sfx('ui');start(currentMode())};$('#onlineBtn').onclick=()=>{ensureAudio();sfx('ui');cleanup();online(currentMode())};bindNav()
 }
 
@@ -124,7 +137,7 @@ function finish(){
 
 function gallery(){
   screen='gallery';const tribes=[...new Set(cards.map(c=>c.tribe||'Unaligned'))].sort();
-  app.innerHTML=nav()+`<main class="collection"><div class="collection-title"><div><small>COLLECTION & GAME STATS</small><h1>Meet the Chimpions</h1></div><div class="filters"><input id="search" placeholder="Search name or tribe" aria-label="Search collection"><select id="tribe"><option value="">All tribes</option>${tribes.map(t=>`<option>${escapeHtml(t)}</option>`).join('')}</select><select id="sort"><option value="id">Number</option><option value="name">Name</option>${ATTRIBUTES.map(a=>`<option value="${a}">${a}</option>`).join('')}</select></div></div><div class="grid" id="grid"></div><dialog id="detail"><button class="close" aria-label="Close">×</button><div id="detailBody"></div></dialog></main>`;
+  app.innerHTML=nav()+`<main class="collection"><div class="collection-title"><div><small>COLLECTION & GAME STATS • ${cards.length} PLAYABLE</small><h1>Meet the Chimpions</h1><p class="collection-source">The official gallery API currently exposes ${cards.length} playable Chimpions. Game stats are balanced attributes, not NFT rarity rankings.</p></div><div class="filters"><input id="search" placeholder="Search name or tribe" aria-label="Search collection"><select id="tribe"><option value="">All tribes</option>${tribes.map(t=>`<option>${escapeHtml(t)}</option>`).join('')}</select><select id="sort"><option value="id">Number</option><option value="name">Name</option>${ATTRIBUTES.map(a=>`<option value="${a}">${a}</option>`).join('')}</select></div></div><div class="grid" id="grid"></div><dialog id="detail"><button class="close" aria-label="Close">×</button><div id="detailBody"></div></dialog></main>`;
   const draw=()=>{
     const q=$('#search').value.toLowerCase(),tribe=$('#tribe').value,sort=$('#sort').value;
     let list=cards.filter(c=>(c.name+' '+(c.tribe||'')).toLowerCase().includes(q)&&(!tribe||c.tribe===tribe));
