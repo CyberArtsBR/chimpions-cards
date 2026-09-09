@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  ATTRIBUTES,cardStats,createMatch,resolveRound,advanceMatch,reserveSwap,legalAttributes,
+  ATTRIBUTES,MODES,cardStats,createMatch,resolveRound,advanceMatch,reserveSwap,legalAttributes,
   totalCardsInPlay,finishMatch,chooseCpuAttribute,decorateCards,decorateCard,validateCardStats
 } from '../public/engine.js';
 
