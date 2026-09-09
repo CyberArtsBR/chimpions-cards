@@ -40,17 +40,17 @@ function bindNav(){
 }
 function bindImages(){document.querySelectorAll('img').forEach(img=>{img.addEventListener('error',()=>{if(img.src!==placeholder)img.src=placeholder},{once:true})})}
 function preload(url){if(!url)return;const i=new Image();i.src=url}
-function currentMode(){return document.querySelector('[name="mode"]:checked')?.value||MODES.classic}
+function currentMode(){return document.querySelector('[name="mode"]:checked')?.value||MODES.tactical}
 
 function menu(){
   screen='menu';
   const v=manifest?validateCollection(manifest):null;
-  const collectionNote=v&&v.expected&&v.count!==v.expected?`<div class="notice">Prototype manifest: ${v.count}/${v.expected} cards loaded. Run the collection importer before production balancing.</div>`:'';
-  app.innerHTML=nav()+`<main class="hero"><div class="hero-copy"><div class="eyebrow">1/1 ANIMATED CHIMPIONS • COMPETITIVE CARD BATTLE</div><h1>Every Chimpion<br><em>has a way to win.</em></h1><p>Read the matchup, pick the edge, and claim the standoff pot.</p><fieldset class="mode-picker"><legend>Ruleset</legend><label><input type="radio" name="mode" value="classic" checked><span><b>Classic</b><small>Winner chooses next</small></span></label><label><input type="radio" name="mode" value="tactical"><span><b>Tactical</b><small>Alternating turns • no repeat • 1 reserve swap</small></span></label></fieldset><div class="actions"><button class="primary" id="quick">Play vs CPU</button><button id="onlineBtn">Private 1v1</button></div><div class="features"><span>⚡ 5–8 min matches</span><span>◆ Equal stat budget</span><span>◎ Animated originals</span></div>${collectionNote}</div><div class="hero-card-stack" aria-hidden="true"><div class="mini-card mc1">POWER</div><div class="mini-card mc2">MYSTIQUE</div><div class="mini-card mc3">TECH</div></div></main>`;
+  const collectionNote=v&&v.expected&&v.count!==v.expected?`<div class="notice">Official API snapshot: ${v.count}/${v.expected} advertised Chimpions available. Gameplay uses every API card; collection-wide balance remains provisional until the source discrepancy is resolved.</div>`:'';
+  app.innerHTML=nav()+`<main class="hero"><div class="hero-copy"><div class="eyebrow">1/1 ANIMATED CHIMPIONS • COMPETITIVE CARD BATTLE</div><h1>Every Chimpion<br><em>has a way to win.</em></h1><p>Read the matchup, pick the edge, and claim the standoff pot.</p><fieldset class="mode-picker"><legend>Ruleset</legend><label><input type="radio" name="mode" value="classic"><span><b>Classic</b><small>Traditional • winner chooses next</small></span></label><label><input type="radio" name="mode" value="tactical" checked><span><b>Tactical ★</b><small>Recommended • alternating turns • no repeat • 1 reserve swap</small></span></label></fieldset><div class="actions"><button class="primary" id="quick">Play vs CPU</button><button id="onlineBtn">Private 1v1</button></div><div class="features"><span>⚡ 5–8 min matches</span><span>◆ Equal stat budget</span><span>◎ Animated originals</span></div>${collectionNote}</div><div class="hero-card-stack" aria-hidden="true"><div class="mini-card mc1">POWER</div><div class="mini-card mc2">MYSTIQUE</div><div class="mini-card mc3">TECH</div></div></main>`;
   $('#quick').onclick=()=>{ensureAudio();sfx('ui');start(currentMode())};$('#onlineBtn').onclick=()=>{ensureAudio();sfx('ui');cleanup();online(currentMode())};bindNav()
 }
 
-function start(mode=MODES.classic){
+function start(mode=MODES.tactical){
   cleanup();screen='battle';ensureAudio();
   const starter=Math.random()<.5?0:1;
   game=createMatch(cards,{deckSize:6,maxRounds:24,mode,starter});
@@ -138,7 +138,7 @@ function showDetail(id){const c=cards.find(x=>String(x.id)===String(id));if(!c)r
 
 function help(){app.innerHTML=nav()+`<main class="copy"><small>30-SECOND GUIDE</small><h1>How to play</h1><ol><li>Study your visible Chimpion and choose one of its six game stats.</li><li>The rival card reveals. The higher value wins both cards.</li><li>A tie creates a standoff pot. The next decisive winner claims everything.</li><li><b>Classic:</b> the round winner chooses the next attribute; a tie keeps initiative.</li><li><b>Tactical:</b> initiative alternates every round, the last attribute cannot be repeated, and each player gets one reserve swap.</li><li>If the round limit or deck exhaustion arrives with an unresolved pot, tied cards return to their original owners before final scoring.</li></ol><p>Game stats use an equal deterministic budget. They are not rarity, price, or official collection rankings.</p><button class="primary" id="go">Enter the arena</button></main>`;$('#go').onclick=()=>start();bindNav()}
 
-function online(defaultMode=MODES.classic){
+function online(defaultMode=MODES.tactical){
   cleanup();screen='online';
   app.innerHTML=nav()+`<main class="copy online-copy"><small>SERVER-AUTHORITATIVE PRIVATE ROOM</small><h1>Challenge a friend</h1><p>Create a four-letter room code or enter one shared by a friend. A disconnected player ends the room; stalled turns auto-resolve after the visible timer.</p><fieldset class="mode-picker compact"><legend>Room rules</legend><label><input type="radio" name="mode" value="classic" ${defaultMode==='classic'?'checked':''}><span><b>Classic</b></span></label><label><input type="radio" name="mode" value="tactical" ${defaultMode==='tactical'?'checked':''}><span><b>Tactical</b></span></label></fieldset><div class="room"><button class="primary" id="create">Create room</button><input id="code" maxlength="4" autocomplete="off" placeholder="CODE" aria-label="Room code"><button id="join">Join</button></div><div id="status" aria-live="polite">Connecting…</div></main>`;bindNav();
   socket=new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/room`);
@@ -174,7 +174,7 @@ function netReveal(m){
 function netGameOver(m){
   const state=m.winner==='you'?'win':m.winner==='draw'?'draw':'loss',title=state==='win'?'Victory':state==='draw'?'Draw':'Defeat';
   if(state==='win')sfx('final');else sfx(state==='draw'?'tie':'lose');
-  app.innerHTML=nav()+`<main class="result ${state}"><div class="trophy">${state==='win'?'♛':state==='draw'?'=':'◇'}</div><h1>${title}</h1><p>Final count: ${m.counts[0]} to ${m.counts[1]}.</p><div class="result-actions"><button class="primary" id="onlineAgain">New room</button><button data-go="menu">Main menu</button></div></main>`;$('#onlineAgain').onclick=()=>online(m.mode||MODES.classic);bindNav()
+  app.innerHTML=nav()+`<main class="result ${state}"><div class="trophy">${state==='win'?'♛':state==='draw'?'=':'◇'}</div><h1>${title}</h1><p>Final count: ${m.counts[0]} to ${m.counts[1]}.</p><div class="result-actions"><button class="primary" id="onlineAgain">New room</button><button data-go="menu">Main menu</button></div></main>`;$('#onlineAgain').onclick=()=>online(m.mode||MODES.tactical);bindNav()
 }
 
 fetch('/data/chimpions.json').then(r=>{if(!r.ok)throw new Error(`HTTP ${r.status}`);return r.json()}).then(d=>{manifest=d;cards=decorateCards(d.cards||[]);menu()}).catch(()=>app.innerHTML='<main class="result loss"><h1>Collection unavailable</h1><p>Refresh to try again.</p></main>');

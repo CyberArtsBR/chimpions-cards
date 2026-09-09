@@ -1,0 +1,193 @@
+{
+  "cards": 221,
+  "expected": 222,
+  "apiReportedTotal": 221,
+  "provisional": true,
+  "statBudget": 360,
+  "bounds": [
+    34,
+    86
+  ],
+  "distributions": {
+    "Power": {
+      "min": 34,
+      "mean": 60.181,
+      "median": 60,
+      "max": 86,
+      "unique": 53
+    },
+    "Agility": {
+      "min": 34,
+      "mean": 60.294,
+      "median": 60,
+      "max": 86,
+      "unique": 52
+    },
+    "Intellect": {
+      "min": 34,
+      "mean": 59.181,
+      "median": 59,
+      "max": 86,
+      "unique": 51
+    },
+    "Tech": {
+      "min": 34,
+      "mean": 61.072,
+      "median": 62,
+      "max": 86,
+      "unique": 51
+    },
+    "Mystique": {
+      "min": 34,
+      "mean": 59.484,
+      "median": 59,
+      "max": 86,
+      "unique": 53
+    },
+    "Charisma": {
+      "min": 34,
+      "mean": 59.787,
+      "median": 59,
+      "max": 86,
+      "unique": 53
+    }
+  },
+  "strongestByBestAttribute": [
+    {
+      "id": 30,
+      "name": "The Celestial",
+      "best": 0.991,
+      "average": 0.484
+    },
+    {
+      "id": 100,
+      "name": "The Hollow",
+      "best": 0.991,
+      "average": 0.486
+    },
+    {
+      "id": 136,
+      "name": "The Nomad",
+      "best": 0.991,
+      "average": 0.486
+    },
+    {
+      "id": 197,
+      "name": "The Summoner",
+      "best": 0.991,
+      "average": 0.47
+    },
+    {
+      "id": 220,
+      "name": "The Youthful",
+      "best": 0.991,
+      "average": 0.484
+    },
+    {
+      "id": 8,
+      "name": "The Ancient",
+      "best": 0.984,
+      "average": 0.481
+    },
+    {
+      "id": 42,
+      "name": "The Coordinator",
+      "best": 0.984,
+      "average": 0.484
+    },
+    {
+      "id": 71,
+      "name": "The Expressive",
+      "best": 0.984,
+      "average": 0.503
+    },
+    {
+      "id": 88,
+      "name": "The Golem",
+      "best": 0.984,
+      "average": 0.509
+    },
+    {
+      "id": 121,
+      "name": "The Leisurely",
+      "best": 0.984,
+      "average": 0.479
+    }
+  ],
+  "weakestByBestAttribute": [
+    {
+      "id": 12,
+      "name": "The Archon",
+      "best": 0.793,
+      "average": 0.486
+    },
+    {
+      "id": 135,
+      "name": "The Nightstalker",
+      "best": 0.795,
+      "average": 0.507
+    },
+    {
+      "id": 172,
+      "name": "The Remnant",
+      "best": 0.809,
+      "average": 0.522
+    },
+    {
+      "id": 14,
+      "name": "The Armsman",
+      "best": 0.809,
+      "average": 0.522
+    },
+    {
+      "id": 141,
+      "name": "The One Who Lurks In Shadow",
+      "best": 0.811,
+      "average": 0.526
+    },
+    {
+      "id": 202,
+      "name": "The Test Subject",
+      "best": 0.814,
+      "average": 0.518
+    },
+    {
+      "id": 60,
+      "name": "The Enameled",
+      "best": 0.814,
+      "average": 0.495
+    },
+    {
+      "id": 175,
+      "name": "The Right Hand",
+      "best": 0.82,
+      "average": 0.485
+    },
+    {
+      "id": 154,
+      "name": "The Patient",
+      "best": 0.82,
+      "average": 0.483
+    },
+    {
+      "id": 79,
+      "name": "The Fractured",
+      "best": 0.82,
+      "average": 0.491
+    }
+  ],
+  "starterStudy": {
+    "classic": {
+      "runs": 200,
+      "starterWinRate": 0.65,
+      "otherWinRate": 0.35,
+      "drawRate": 0
+    },
+    "tactical": {
+      "runs": 200,
+      "starterWinRate": 0.39,
+      "otherWinRate": 0.35,
+      "drawRate": 0.26
+    }
+  }
+}
