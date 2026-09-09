@@ -1,0 +1,29 @@
+name: Assemble Battle Theme
+
+on:
+  push:
+    branches:
+      - work/battle-theme-track
+
+permissions:
+  contents: write
+
+jobs:
+  assemble:
+    if: ${{ !contains(github.event.head_commit.message, '[audio assembled]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct optimized battle theme
+        run: |
+          mkdir -p public/audio
+          cat .tmp-audio/chunk_*.txt | base64 -d > public/audio/battle-theme.mp3
+          echo "5fdafd4378df23c9f0583f632d002d2bc544518ef0d1208d05e6bf30e3be2153  public/audio/battle-theme.mp3" | sha256sum -c -
+          test "$(stat -c%s public/audio/battle-theme.mp3)" -gt 3000000
+      - name: Commit binary audio asset
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/audio/battle-theme.mp3
+          git commit -m "Add optimized battle theme [audio assembled]"
+          git push
