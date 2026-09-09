@@ -1,15 +1,107 @@
-import http from 'node:http'; import {readFile,stat} from 'node:fs/promises'; import {extname,join,normalize} from 'node:path'; import {WebSocketServer} from 'ws'; import {fileURLToPath} from 'node:url';
+import http from 'node:http';
+import {readFile,stat} from 'node:fs/promises';
+import {extname,join,normalize} from 'node:path';
+import {randomInt} from 'node:crypto';
+import {WebSocketServer,WebSocket} from 'ws';
+import {fileURLToPath} from 'node:url';
+import {
+  ATTRIBUTES,MODES,decorateCards,createMatch,legalAttributes,resolveRound,advanceMatch,
+  reserveSwap,chooseCpuAttribute
+} from '../public/engine.js';
+
 const root=fileURLToPath(new URL('../public/',import.meta.url));
-const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.svg':'image/svg+xml'};
-const server=http.createServer(async(req,res)=>{try{const url=new URL(req.url,'http://x');let p=normalize(url.pathname).replace(/^(\.\.(\/|\\|$))+/, '');if(p==='/' )p='/index.html';let f=join(root,p);if(!(await stat(f)).isFile()) throw 0;res.writeHead(200,{'content-type':mime[extname(f)]||'application/octet-stream','cache-control':extname(f)==='.html'?'no-cache':'public,max-age=3600'});res.end(await readFile(f));}catch{res.writeHead(404);res.end('Not found');}});
-const attrs=['Power','Agility','Intellect','Tech','Mystique','Charisma'];
-function hash(s){let h=2166136261;for(const c of s){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0} function stats(c){let x=hash(c.mint),raw=attrs.map(()=>{x=(Math.imul(x,1664525)+1013904223)>>>0;return 30+x%61}),sum=raw.reduce((a,b)=>a+b);return Object.fromEntries(attrs.map((a,i)=>[a,Math.max(25,Math.min(95,Math.round(raw[i]*360/sum)))]))} function shuffle(a){for(let i=a.length-1;i;i--){let j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a}
-const manifest=JSON.parse(await readFile(join(root,'data/chimpions.json'),'utf8'));const cards=manifest.cards.map(c=>({...c,stats:stats(c)}));
+const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.svg':'image/svg+xml','.webp':'image/webp','.png':'image/png'};
+const server=http.createServer(async(req,res)=>{
+  try{
+    const url=new URL(req.url,'http://local');let p=normalize(url.pathname).replace(/^(\.\.(\/|\\|$))+/, '');
+    if(p==='/')p='/index.html';const f=join(root,p);if(!(await stat(f)).isFile())throw new Error('not-file');
+    res.writeHead(200,{'content-type':mime[extname(f)]||'application/octet-stream','cache-control':extname(f)==='.html'?'no-cache':'public,max-age=3600'});res.end(await readFile(f));
+  }catch{res.writeHead(404);res.end('Not found')}
+});
+
+const manifest=JSON.parse(await readFile(join(root,'data/chimpions.json'),'utf8'));
+const cards=decorateCards(manifest.cards||[]);
 const wss=new WebSocketServer({server,path:'/room'}),rooms=new Map();
-const code=()=>Array.from({length:4},()=> 'ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.random()*24|0]).join('');
-function send(ws,type,data={}){if(ws.readyState===1)ws.send(JSON.stringify({type,...data}))} function peers(r){return r?.players||[]}
-wss.on('connection',ws=>{ws.on('message',raw=>{let m;try{m=JSON.parse(raw)}catch{return} if(m.type==='create'){let c;do c=code();while(rooms.has(c));rooms.set(c,{players:[ws]});ws.room=c;send(ws,'room',{code:c,seat:0});}
-else if(m.type==='join'){const c=String(m.code||'').toUpperCase(),r=rooms.get(c);if(!r||r.players.length>1)return send(ws,'error',{message:'Room unavailable'});r.players.push(ws);ws.room=c;const pool=shuffle([...cards]);r.game={decks:[pool.slice(0,6),pool.slice(6,12)],pot:[],round:1,active:Math.random()<.5?0:1,busy:false};peers(r).forEach((p,i)=>{p.seat=i;send(p,'ready',{code:c,seat:i});state(r,i)});}
-else if(m.type==='action'){const r=rooms.get(ws.room),g=r?.game,a=m.action;if(!g||g.busy||ws.seat!==g.active||!attrs.includes(a))return;g.busy=true;const drawn=[g.decks[0].shift(),g.decks[1].shift()],v=drawn.map(c=>c.stats[a]);let winner=null;if(v[0]===v[1])g.pot.push(...drawn);else{winner=v[0]>v[1]?0:1;g.decks[winner].push(...drawn,...g.pot.splice(0));g.active=winner}peers(r).forEach((p,i)=>send(p,'reveal',{cards:i===0?drawn:[drawn[1],drawn[0]],values:i===0?v:[v[1],v[0]],attribute:a,winner:winner===null?null:(winner===i?'you':'them'),pot:g.pot.length}));setTimeout(()=>{g.round++;g.busy=false;if(!g.decks[0].length||!g.decks[1].length||g.round>24){const w=g.decks[0].length===g.decks[1].length?null:(g.decks[0].length>g.decks[1].length?0:1);peers(r).forEach((p,i)=>send(p,'gameover',{winner:w===null?'draw':w===i?'you':'them',counts:[g.decks[i].length,g.decks[1-i].length]}));}else peers(r).forEach((p,i)=>state(r,i));},1600);}});ws.on('close',()=>{const r=rooms.get(ws.room);if(!r)return;r.players.forEach(p=>p!==ws&&send(p,'left'));rooms.delete(ws.room);});});
-function state(r,seat){const g=r.game;send(r.players[seat],'state',{card:g.decks[seat][0],counts:[g.decks[seat].length,g.decks[1-seat].length],round:g.round,pot:g.pot.length,turn:g.active===seat});}
+const ALPHABET='ABCDEFGHJKLMNPQRSTUVWXYZ',TURN_MS=20_000,REVEAL_MS=1_350,WAITING_TTL=10*60_000,FINISHED_TTL=90_000;
+
+function roomCode(){return Array.from({length:4},()=>ALPHABET[randomInt(ALPHABET.length)]).join('')}
+function send(ws,type,data={}){if(ws?.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type,...data}))}
+function peers(room){return room?.players||[]}
+function clearRoomTimers(room){if(!room)return;if(room.turnTimer)clearTimeout(room.turnTimer);if(room.revealTimer)clearTimeout(room.revealTimer);if(room.gcTimer)clearTimeout(room.gcTimer);room.turnTimer=room.revealTimer=room.gcTimer=null}
+function destroyRoom(code,reason=null){const room=rooms.get(code);if(!room)return;clearRoomTimers(room);if(reason)peers(room).forEach(p=>send(p,'left',{reason}));for(const p of peers(room))if(p.room===code)p.room=null;rooms.delete(code)}
+function scheduleGc(room,ms){if(room.gcTimer)clearTimeout(room.gcTimer);room.gcTimer=setTimeout(()=>destroyRoom(room.code),ms)}
+
+function publicState(room,seat){
+  const g=room.game;
+  return {
+    card:g.decks[seat][0],counts:[g.decks[seat].length,g.decks[1-seat].length],round:g.round,maxRounds:g.maxRounds,
+    pot:g.pot.length*2,turn:g.active===seat,mode:g.mode,legal:legalAttributes(g),swaps:[g.swaps[seat],g.swaps[1-seat]],deadline:room.deadline
+  }
+}
+function broadcastState(room){peers(room).forEach((p,i)=>send(p,'state',publicState(room,i)))}
+function armTurn(room){
+  if(room.turnTimer)clearTimeout(room.turnTimer);room.turnTimer=null;
+  const g=room.game;if(!g||g.finished||g.phase!=='choose')return;
+  room.deadline=Date.now()+TURN_MS;broadcastState(room);
+  room.turnTimer=setTimeout(()=>{
+    if(!room.game||room.game.finished||room.game.phase!=='choose')return;
+    const seat=room.game.active,card=room.game.decks[seat][0],banned=room.game.mode===MODES.tactical?room.game.lastAttribute:null;
+    const attribute=chooseCpuAttribute(card,cards,banned);performAction(room,seat,attribute,true)
+  },TURN_MS+25)
+}
+function sendGameOver(room){
+  const g=room.game,out=g.outcome;room.finished=true;room.deadline=null;
+  peers(room).forEach((p,i)=>send(p,'gameover',{winner:out.winner===null?'draw':out.winner===i?'you':'them',counts:[out.counts[i],out.counts[1-i]],mode:g.mode,roundsPlayed:out.roundsPlayed}));
+  scheduleGc(room,FINISHED_TTL)
+}
+function performAction(room,seat,attribute,timedOut=false){
+  const g=room?.game;if(!g||room.finished||g.finished||g.phase!=='choose')return false;
+  if(seat!==g.active||!legalAttributes(g).includes(attribute))return false;
+  if(room.turnTimer)clearTimeout(room.turnTimer);room.turnTimer=null;room.deadline=null;
+  let result;try{result=resolveRound(g,attribute,seat)}catch{return false}
+  peers(room).forEach((p,i)=>send(p,'reveal',{
+    cards:i===0?result.cards:[result.cards[1],result.cards[0]],values:i===0?result.values:[result.values[1],result.values[0]],attribute,
+    winner:result.winner===null?null:(result.winner===i?'you':'them'),pot:g.pot.length*2,timedOut:timedOut&&seat===i
+  }));
+  room.revealTimer=setTimeout(()=>{
+    room.revealTimer=null;advanceMatch(g);if(g.finished)sendGameOver(room);else armTurn(room)
+  },REVEAL_MS);
+  return true
+}
+
+wss.on('connection',ws=>{
+  ws.room=null;ws.seat=null;
+  ws.on('message',raw=>{
+    let m;try{m=JSON.parse(raw)}catch{return send(ws,'error',{message:'Invalid message'})}
+    if(m.type==='create'){
+      if(ws.room)return send(ws,'error',{message:'Leave the current room before creating another.'});
+      let c;do c=roomCode();while(rooms.has(c));
+      const mode=m.mode===MODES.tactical?MODES.tactical:MODES.classic,room={code:c,mode,players:[ws],game:null,finished:false,createdAt:Date.now(),deadline:null};
+      rooms.set(c,room);ws.room=c;ws.seat=0;send(ws,'room',{code:c,seat:0,mode});scheduleGc(room,WAITING_TTL);return
+    }
+    if(m.type==='join'){
+      if(ws.room)return send(ws,'error',{message:'You are already in a room.'});
+      const c=String(m.code||'').trim().toUpperCase(),room=rooms.get(c);
+      if(!room||room.finished||room.players.length!==1)return send(ws,'error',{message:'Room unavailable'});
+      if(room.players.includes(ws))return send(ws,'error',{message:'You cannot join your own room.'});
+      if(room.gcTimer)clearTimeout(room.gcTimer);room.gcTimer=null;room.players.push(ws);ws.room=c;ws.seat=1;
+      room.game=createMatch(cards,{deckSize:6,maxRounds:24,mode:room.mode,starter:randomInt(2)});
+      peers(room).forEach((p,i)=>send(p,'ready',{code:c,seat:i,mode:room.mode}));armTurn(room);return
+    }
+    const room=rooms.get(ws.room);
+    if(!room||room.finished)return send(ws,'error',{message:'This room is no longer active.'});
+    if(m.type==='action'){
+      if(!performAction(room,ws.seat,m.action,false))send(ws,'error',{message:'That action is not legal right now.'});return
+    }
+    if(m.type==='swap'){
+      const g=room.game;if(!g||g.finished||g.phase!=='choose'||g.active!==ws.seat)return send(ws,'error',{message:'Reserve swap is not available now.'});
+      try{reserveSwap(g,ws.seat);broadcastState(room)}catch(e){send(ws,'error',{message:e.message})}return
+    }
+  });
+  ws.on('close',()=>{
+    const code=ws.room,room=rooms.get(code);if(!room)return;
+    if(room.players.length>1)destroyRoom(code,'Opponent disconnected. Room closed.');else destroyRoom(code)
+  });
+});
+
 server.listen(process.env.PORT||3000,()=>console.log(`CHIMPIONS Arena on http://localhost:${process.env.PORT||3000}`));
