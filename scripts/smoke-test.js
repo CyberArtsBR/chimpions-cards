@@ -48,7 +48,7 @@ try{
 
   const health=await fetch(`${base}/healthz`);
   assert.equal(health.status,200);
-  assert.deepEqual(await health.json(),{ok:true,service:'chimpions-attribute-arena'});
+  assert.deepEqual(await health.json(),{ok:true,service:'chimpions-arena'});
 
   const home=await fetch(base);
   assert.equal(home.status,200);
@@ -58,6 +58,11 @@ try{
   assert.equal(battleTheme.status,200);
   assert.match(battleTheme.headers.get('content-type')||'',/audio\/mpeg/i);
   assert.ok((await battleTheme.arrayBuffer()).byteLength>3_000_000);
+
+  const arenaVideo=await fetch(`${base}/video/crowd-and-flag.mp4`);
+  assert.equal(arenaVideo.status,200);
+  assert.match(arenaVideo.headers.get('content-type')||'',/video\/mp4/i);
+  assert.ok((await arenaVideo.arrayBuffer()).byteLength>4_000_000);
 
   const manifestResponse=await fetch(`${base}/data/chimpions.json`);
   assert.equal(manifestResponse.status,200);
@@ -90,7 +95,7 @@ try{
   }
   assert.notEqual(stateA.turn,stateB.turn);
 
-  console.log('Production smoke test passed: HTTP, health, battle-theme audio, 221-card manifest, and 1v1 WebSocket room handshake.');
+  console.log('Production smoke test passed: HTTP, health, battle-theme audio, arena video, 221-card manifest, and 1v1 WebSocket room handshake.');
 }finally{
   for(const c of [a,b])try{c?.ws?.close()}catch{}
   child.kill('SIGTERM');
