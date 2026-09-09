@@ -101,7 +101,7 @@ function toggleMotion(){
   prefs.motion=prefs.motion==='auto'?'reduced':prefs.motion==='reduced'?'full':'auto';
   localStorage.setItem('chimpions:motion',prefs.motion);applyMotionPreference();renderAudioButtons()
 }
-function applyMotionPreference(){document.body.classList.toggle('reduce-motion',motionReduced())}
+function applyMotionPreference(){document.body.classList.toggle('reduce-motion',motionReduced());syncArenaVideo()}
 function renderAudioButtons(){
   const s=$('#sfxToggle'),m=$('#musicToggle'),p=$('#paceToggle'),r=$('#motionToggle');
   if(s){s.textContent=prefs.sfx?'SFX ON':'SFX OFF';s.setAttribute('aria-pressed',String(prefs.sfx))}
@@ -125,11 +125,26 @@ function officialLinks(compact=false){
     <a class="official-discord" href="${OFFICIAL_LINKS.discord}" target="_blank" rel="noreferrer" aria-label="Chimpions Discord">${socialIcon('discord')}<strong>Discord</strong></a>
   </div>`
 }
+// Keep the same media element through round renders so the crowd loop never restarts.
+let arenaVideo=null;
+function syncArenaVideo(){
+  const host=document.querySelector('.arena-video');
+  if(!host){arenaVideo?.pause();return}
+  if(!arenaVideo){
+    arenaVideo=document.createElement('video');
+    arenaVideo.src=ARENA_VIDEO_URL;arenaVideo.poster='/video/arena-poster.jpg';arenaVideo.loop=true;arenaVideo.muted=true;
+    arenaVideo.defaultMuted=true;arenaVideo.playsInline=true;arenaVideo.preload='auto';
+    arenaVideo.setAttribute('aria-hidden','true');
+  }
+  if(arenaVideo.parentElement!==host){host.querySelector('video')?.remove();host.prepend(arenaVideo)}
+  if(motionReduced()||document.hidden)arenaVideo.pause();
+  else arenaVideo.play().catch(()=>{});
+}
+document.addEventListener('visibilitychange',syncArenaVideo);
+document.addEventListener('pointerdown',()=>{if(arenaVideo?.paused)syncArenaVideo()});
 function backgroundVideo(kind='battle'){
   return `<div class="arena-video arena-video-${kind}" aria-hidden="true">
-    <video autoplay muted loop playsinline preload="auto">
-      <source src="${ARENA_VIDEO_URL}" type="video/mp4">
-    </video>
+
     <div class="arena-video-color"></div>
     <div class="arena-video-vignette"></div>
   </div>`

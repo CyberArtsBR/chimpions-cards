@@ -1,4 +1,5 @@
 import http from 'node:http';
+import {createReadStream} from 'node:fs';
 import {readFile,stat} from 'node:fs/promises';
 import {extname,join,normalize} from 'node:path';
 import {randomInt} from 'node:crypto';
@@ -10,14 +11,32 @@ import {
 } from '../public/engine.js';
 
 const root=fileURLToPath(new URL('../public/',import.meta.url));
-const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.svg':'image/svg+xml','.webp':'image/webp','.png':'image/png','.mp3':'audio/mpeg'};
+const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.svg':'image/svg+xml','.webp':'image/webp','.png':'image/png','.mp3':'audio/mpeg','.mp4':'video/mp4','.jpg':'image/jpeg'};
 const server=http.createServer(async(req,res)=>{
   try{
     const url=new URL(req.url,'http://local');
     if(url.pathname==='/healthz'){res.writeHead(200,{'content-type':'application/json; charset=utf-8','cache-control':'no-store'});return res.end(JSON.stringify({ok:true,service:'chimpions-attribute-arena'}))}
     let p=normalize(url.pathname).replace(/^(\.\.(\/|\\|$))+/, '');
     if(p==='/')p='/index.html';const f=join(root,p);if(!(await stat(f)).isFile())throw new Error('not-file');
-    res.writeHead(200,{'content-type':mime[extname(f)]||'application/octet-stream','cache-control':extname(f)==='.html'?'no-cache':'public,max-age=3600'});res.end(await readFile(f));
+    const {size}=await stat(f);
+    const headers={'content-type':mime[extname(f)]||'application/octet-stream','cache-control':['.html','.js','.css'].includes(extname(f))?'no-cache':'public,max-age=3600','accept-ranges':'bytes'};
+    let start=0,end=size-1,status=200;
+    if(req.headers.range){
+      const match=/^bytes=(\d*)-(\d*)$/.exec(req.headers.range);
+      if(match&&(match[1]||match[2])){
+        start=match[1]?Number(match[1]):Math.max(0,size-Number(match[2]));
+        end=match[1]&&match[2]?Math.min(size-1,Number(match[2])):size-1;
+      }else start=NaN;
+      if(!Number.isSafeInteger(start)||!Number.isSafeInteger(end)||start>end||start>=size){
+        res.writeHead(416,{...headers,'content-range':`bytes */${size}`});return res.end();
+      }
+      status=206;headers['content-range']=`bytes ${start}-${end}/${size}`;
+    }
+    headers['content-length']=Math.max(0,end-start+1);
+    res.writeHead(status,headers);
+    if(req.method==='HEAD'||size===0)return res.end();
+    const stream=createReadStream(f,{start,end});
+    stream.on('error',()=>res.destroy());res.on('close',()=>stream.destroy());stream.pipe(res);
   }catch{res.writeHead(404);res.end('Not found')}
 });
 

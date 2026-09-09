@@ -59,6 +59,20 @@ try{
   assert.match(battleTheme.headers.get('content-type')||'',/audio\/mpeg/i);
   assert.ok((await battleTheme.arrayBuffer()).byteLength>3_000_000);
 
+  const video=await fetch(`${base}/video/crowd-and-flag.mp4`,{method:'HEAD'});
+  assert.equal(video.status,200);
+  assert.equal(video.headers.get('content-type'),'video/mp4');
+  const videoSize=Number(video.headers.get('content-length'));
+  assert.ok(videoSize>1_000_000);
+  for(const [range,length] of [['bytes=0-1023',1024],['bytes=-128',128]]){
+    const partial=await fetch(`${base}/video/crowd-and-flag.mp4`,{headers:{Range:range}});
+    assert.equal(partial.status,206);
+    assert.equal((await partial.arrayBuffer()).byteLength,length);
+    assert.match(partial.headers.get('content-range'),/^bytes /);
+  }
+  const invalid=await fetch(`${base}/video/crowd-and-flag.mp4`,{headers:{Range:`bytes=${videoSize}-`}});
+  assert.equal(invalid.status,416);
+
   const manifestResponse=await fetch(`${base}/data/chimpions.json`);
   assert.equal(manifestResponse.status,200);
   const manifest=await manifestResponse.json();
