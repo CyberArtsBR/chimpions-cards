@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  ATTRIBUTES,MODES,cardStats,createMatch,resolveRound,advanceMatch,reserveSwap,legalAttributes,
+  ATTRIBUTES,MODES,CPU_DIFFICULTIES,cardStats,createMatch,resolveRound,advanceMatch,reserveSwap,legalAttributes,
   totalCardsInPlay,finishMatch,chooseCpuAttribute,decorateCards,decorateCard,validateCardStats
 } from '../public/engine.js';
 
@@ -118,4 +118,30 @@ test('seeded invariant runs conserve cards and reject invalid mutations',()=>{
     assert.throws(()=>resolveRound(g,'Power',g.active),/Match finished/);
     assert.equal(JSON.stringify(g),snapshot);
   }
+});
+
+
+test('CPU difficulty levels remain legal and Expert keeps the strongest heuristic',()=>{
+  const c=fixtures[0],banned='Power';
+  const expert=chooseCpuAttribute(c,fixtures,banned,{difficulty:CPU_DIFFICULTIES.expert,rng:()=>.5});
+  assert.notEqual(expert,banned);
+  const expertScore=Math.max(...ATTRIBUTES.filter(a=>a!==banned).map(a=>{
+    const v=c.stats[a],rivals=fixtures.filter(x=>x!==c);let wins=0,ties=0;
+    for(const rival of rivals){if(v>rival.stats[a])wins++;else if(v===rival.stats[a])ties++}
+    return (wins+ties*.5)/rivals.length
+  }));
+  const pickedValue=c.stats[expert];
+  assert.ok(ATTRIBUTES.includes(expert));
+  for(const difficulty of Object.values(CPU_DIFFICULTIES)){
+    for(let i=0;i<25;i++){
+      const a=chooseCpuAttribute(c,fixtures,banned,{difficulty,rng:()=>i/25});
+      assert.ok(ATTRIBUTES.includes(a));assert.notEqual(a,banned)
+    }
+  }
+  assert.ok(Number.isFinite(expertScore));assert.ok(Number.isFinite(pickedValue));
+});
+
+test('invalid CPU difficulty and rng are rejected',()=>{
+  assert.throws(()=>chooseCpuAttribute(fixtures[0],fixtures,null,{difficulty:'cheat'}),/Invalid CPU difficulty/);
+  assert.throws(()=>chooseCpuAttribute(fixtures[0],fixtures,null,{difficulty:CPU_DIFFICULTIES.easy,rng:1}),/rng/);
 });

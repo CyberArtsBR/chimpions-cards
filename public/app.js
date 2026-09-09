@@ -1,5 +1,5 @@
 import {
-  ATTRIBUTES,MODES,createMatch,legalAttributes,resolveRound,advanceMatch,finishMatch,
+  ATTRIBUTES,MODES,CPU_DIFFICULTIES,createMatch,legalAttributes,resolveRound,advanceMatch,finishMatch,
   reserveSwap,chooseCpuAttribute,attributeWinRate,decorateCards,validateCollection
 } from './engine.js';
 
@@ -10,16 +10,18 @@ const REVEAL_HOLD_NORMAL_MS=2400,REVEAL_HOLD_FAST_MS=1200,CPU_THINK_MS=900;
 const prefs={
   sfx:localStorage.getItem('chimpions:sfx')!=='off',
   music:localStorage.getItem('chimpions:music')!=='off',
-  fast:localStorage.getItem('chimpions:pace')==='fast'
+  fast:localStorage.getItem('chimpions:pace')==='fast',
+  difficulty:localStorage.getItem('chimpions:difficulty')||CPU_DIFFICULTIES.standard,
+  motion:localStorage.getItem('chimpions:motion')||'auto'
 };
-let audioCtx=null,battleTrack=null,battleMusicUnlockArmed=false,roundAdvanceTimer=null;
+let audioCtx=null,battleTrack=null,battleMusicUnlockArmed=false,roundAdvanceTimer=null,musicDuckTimer=null,cpuDifficulty=prefs.difficulty;
 
 const placeholder=`data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600"><rect width="600" height="600" fill="#111527"/><circle cx="300" cy="260" r="120" fill="#242b45"/><text x="300" y="300" text-anchor="middle" font-family="sans-serif" font-size="128" font-weight="800" fill="#c8ff42">C</text><text x="300" y="450" text-anchor="middle" font-family="sans-serif" font-size="28" fill="#aeb5cc">CHIMPION</text></svg>`)}`;
 
 function schedule(fn,ms){const e=epoch,id=setTimeout(()=>{timers.delete(id);if(e===epoch)fn()},ms);timers.add(id);return id}
 function every(fn,ms){const e=epoch,id=setInterval(()=>{if(e===epoch)fn();else{clearInterval(id);intervals.delete(id)}},ms);intervals.add(id);return id}
 function cleanup({closeSocket=true}={}){
-  epoch++; for(const id of timers)clearTimeout(id);timers.clear();for(const id of intervals)clearInterval(id);intervals.clear();roundAdvanceTimer=null;
+  epoch++; for(const id of timers)clearTimeout(id);timers.clear();for(const id of intervals)clearInterval(id);intervals.clear();roundAdvanceTimer=null;musicDuckTimer=null;document.onkeydown=null;
   stopBattleMusic(true);
   if(closeSocket&&socket){try{socket.close()}catch{}socket=null;netState=null}
 }
@@ -35,10 +37,17 @@ function tone(freq,duration=.12,gain=.035,type='sine',delay=0){
 }
 function sfx(type){
   if(!prefs.sfx)return;ensureAudio();
+  if(['reveal','win','lose','tie','final'].includes(type))duckBattleMusic(type==='final'?1700:950);
   const map={ui:[520],select:[360,620,920],reveal:[150,300,600],win:[440,660,880,1320],lose:[240,180,120],tie:[330,440,330],swap:[520,390],final:[523,659,784,1047,1318]};
   (map[type]||map.ui).forEach((freq,i)=>tone(freq,type==='reveal'?.2:.15,type==='final'?.05:.042,i%2?'triangle':'sine',i*.065))
 }
 const BATTLE_THEME_URL='/audio/battle-theme.mp3',BATTLE_MUSIC_VOLUME=.32;
+function duckBattleMusic(ms=900){
+  if(!battleTrack||battleTrack.paused)return;
+  battleTrack.volume=BATTLE_MUSIC_VOLUME*.38;
+  if(musicDuckTimer){clearTimeout(musicDuckTimer);timers.delete(musicDuckTimer)}
+  musicDuckTimer=schedule(()=>{musicDuckTimer=null;if(battleTrack&&!battleTrack.paused)battleTrack.volume=BATTLE_MUSIC_VOLUME},ms)
+}
 function ensureBattleTrack(){
   if(!battleTrack){
     battleTrack=new Audio(BATTLE_THEME_URL);battleTrack.loop=true;battleTrack.preload='auto';battleTrack.volume=BATTLE_MUSIC_VOLUME;
@@ -77,21 +86,32 @@ function toggleAudio(kind){
 function togglePace(){
   prefs.fast=!prefs.fast;localStorage.setItem('chimpions:pace',prefs.fast?'fast':'normal');renderAudioButtons()
 }
+function motionReduced(){
+  if(prefs.motion==='reduced')return true;
+  if(prefs.motion==='full')return false;
+  return Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
+}
+function toggleMotion(){
+  prefs.motion=prefs.motion==='auto'?'reduced':prefs.motion==='reduced'?'full':'auto';
+  localStorage.setItem('chimpions:motion',prefs.motion);applyMotionPreference();renderAudioButtons()
+}
+function applyMotionPreference(){document.body.classList.toggle('reduce-motion',motionReduced())}
 function renderAudioButtons(){
-  const s=$('#sfxToggle'),m=$('#musicToggle'),p=$('#paceToggle');
+  const s=$('#sfxToggle'),m=$('#musicToggle'),p=$('#paceToggle'),r=$('#motionToggle');
   if(s){s.textContent=prefs.sfx?'SFX ON':'SFX OFF';s.setAttribute('aria-pressed',String(prefs.sfx))}
   if(m){m.textContent=prefs.music?'MUSIC ON':'MUSIC OFF';m.setAttribute('aria-pressed',String(prefs.music))}
   if(p){p.textContent=prefs.fast?'PACE FAST':'PACE NORMAL';p.setAttribute('aria-pressed',String(prefs.fast))}
+  if(r){r.textContent='MOTION '+prefs.motion.toUpperCase();r.setAttribute('aria-pressed',String(motionReduced()))}
 }
 
-function nav(){const pace=screen==='battle'?'<button class="audio-toggle" id="paceToggle" aria-label="Toggle reveal pace"></button>':'';return `<header><button class="brand" data-go="menu"><b>CHIMPIONS</b><span>ATTRIBUTE ARENA</span></button><nav><button data-go="gallery">Collection</button><button data-go="help">How to play</button>${pace}<button class="audio-toggle" id="musicToggle" aria-label="Toggle music"></button><button class="audio-toggle" id="sfxToggle" aria-label="Toggle sound effects"></button></nav></header>`}
+function nav(){const pace=screen==='battle'?'<button class="pace-toggle" id="paceToggle" aria-label="Toggle reveal pace"></button>':'';return `<header><button class="brand" data-go="menu"><b>CHIMPIONS</b><span>ATTRIBUTE ARENA</span></button><nav><button data-go="gallery">Collection</button><button data-go="help">How to play</button>${pace}<button class="motion-toggle" id="motionToggle" aria-label="Cycle motion preference"></button><button class="audio-toggle" id="musicToggle" aria-label="Toggle music"></button><button class="audio-toggle" id="sfxToggle" aria-label="Toggle sound effects"></button></nav></header>`}
 function bindNav(){
   document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));
-  const s=$('#sfxToggle'),m=$('#musicToggle'),p=$('#paceToggle');if(s)s.onclick=()=>toggleAudio('sfx');if(m)m.onclick=()=>toggleAudio('music');if(p)p.onclick=togglePace;renderAudioButtons();bindImages();bindCardTilt();
+  const s=$('#sfxToggle'),m=$('#musicToggle'),p=$('#paceToggle'),r=$('#motionToggle');if(s)s.onclick=()=>toggleAudio('sfx');if(m)m.onclick=()=>toggleAudio('music');if(p)p.onclick=togglePace;if(r)r.onclick=toggleMotion;applyMotionPreference();renderAudioButtons();bindImages();bindCardTilt();
 }
 function bindImages(){document.querySelectorAll('img').forEach(img=>{img.addEventListener('error',()=>{if(img.src!==placeholder)img.src=placeholder},{once:true})})}
 function bindCardTilt(){
-  if(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)return;
+  if(motionReduced())return;
   if(!window.matchMedia?.('(pointer:fine)').matches)return;
   document.querySelectorAll('[data-card-tilt]').forEach(el=>{
     el.onpointermove=e=>{
@@ -104,10 +124,16 @@ function bindCardTilt(){
 }
 function preload(url){if(!url)return;const i=new Image();i.src=url}
 function currentMode(){return document.querySelector('[name="mode"]:checked')?.value||MODES.tactical}
+function currentDifficulty(){return document.querySelector('#cpuDifficulty')?.value||prefs.difficulty}
 const ATTRIBUTE_UI={
-  Power:{icon:'◆',short:'PWR'},Agility:{icon:'➤',short:'AGI'},Intellect:{icon:'◈',short:'INT'},
-  Tech:{icon:'⌬',short:'TEC'},Mystique:{icon:'✦',short:'MYS'},Charisma:{icon:'★',short:'CHA'}
+  Power:{short:'PWR',path:'M13 2 5 13h6l-1 9 9-13h-6z'},
+  Agility:{short:'AGI',path:'M4 12h14m-5-5 5 5-5 5M5 7h4M5 17h4'},
+  Intellect:{short:'INT',path:'M9 4a3 3 0 0 0-3 3v1a3 3 0 0 0-2 3 3 3 0 0 0 2 3v1a3 3 0 0 0 3 3m6-14a3 3 0 0 1 3 3v1a3 3 0 0 1 2 3 3 3 0 0 1-2 3v1a3 3 0 0 1-3 3M9 4v14m6-14v14'},
+  Tech:{short:'TEC',path:'M7 7h10v10H7zM9 2v3m6-3v3M9 19v3m6-3v3M2 9h3m-3 6h3m14-6h3m-3 6h3'},
+  Mystique:{short:'MYS',path:'M12 2l1.8 5.2L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9l5.2-1.8zM19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z'},
+  Charisma:{short:'CHA',path:'m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z'}
 };
+function attrIcon(a){const meta=ATTRIBUTE_UI[a]||ATTRIBUTE_UI.Power;return `<svg class="attr-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="${meta.path}"/></svg>`}
 function attrSlug(a=''){return String(a).toLowerCase()}
 function topAttribute(c){
   return ATTRIBUTES.reduce((best,a)=>c.stats[a]>c.stats[best]?a:best,ATTRIBUTES[0]);
@@ -127,12 +153,14 @@ function menu(){
   screen='menu';
   const v=manifest?validateCollection(manifest):null;
   const collectionNote=v?`<div class="collection-status"><span class="live-dot"></span><b>${v.count} playable Chimpions</b><small>Official API collection snapshot</small></div>`:'';
-  app.innerHTML=nav()+`<main class="hero"><div class="hero-copy"><div class="eyebrow">${cards.length} ANIMATED CHIMPIONS • COMPETITIVE CARD BATTLE</div><h1>Every Chimpion<br><em>has a way to win.</em></h1><p>Read the matchup, pick the edge, and claim the standoff pot.</p><fieldset class="mode-picker"><legend>Ruleset</legend><label><input type="radio" name="mode" value="classic"><span><b>Classic</b><small>Traditional • winner chooses next</small></span></label><label><input type="radio" name="mode" value="tactical" checked><span><b>Tactical ★</b><small>Recommended • alternating turns • no repeat • 1 reserve swap</small></span></label></fieldset><div class="actions"><button class="primary" id="quick">Play vs CPU</button><button id="onlineBtn">Private 1v1</button></div><div class="features"><span>⚡ 5–8 min matches</span><span>◆ Equal stat budget</span><span>◎ Animated originals</span></div>${collectionNote}</div><div class="hero-card-stack" aria-hidden="true">${heroCards()}<div class="hero-glow"></div></div></main>`;
-  $('#quick').onclick=()=>{ensureAudio();sfx('ui');start(currentMode())};$('#onlineBtn').onclick=()=>{ensureAudio();sfx('ui');cleanup();online(currentMode())};bindNav()
+  app.innerHTML=nav()+`<main class="hero"><div class="hero-copy"><div class="eyebrow">${cards.length} ANIMATED CHIMPIONS • COMPETITIVE CARD BATTLE</div><h1>Every Chimpion<br><em>has a way to win.</em></h1><p>Read the matchup, pick the edge, and claim the standoff pot.</p><fieldset class="mode-picker"><legend>Ruleset</legend><label><input type="radio" name="mode" value="classic"><span><b>Classic</b><small>Traditional • winner chooses next</small></span></label><label><input type="radio" name="mode" value="tactical" checked><span><b>Tactical ★</b><small>Recommended • alternating turns • no repeat • 1 reserve swap</small></span></label></fieldset><label class="difficulty-picker"><span>CPU difficulty</span><select id="cpuDifficulty"><option value="easy">Easy</option><option value="standard">Standard</option><option value="expert">Expert</option></select><small>Fair AI only: difficulty changes decision quality, never hidden information.</small></label><div class="actions"><button class="primary" id="quick">Play vs CPU</button><button id="onlineBtn">Private 1v1</button></div><div class="features"><span>⚡ 5–8 min matches</span><span>◆ Equal stat budget</span><span>◎ Animated originals</span></div>${collectionNote}</div><div class="hero-card-stack" aria-hidden="true">${heroCards()}<div class="hero-glow"></div></div></main>`;
+  const diff=$('#cpuDifficulty');if(diff){diff.value=prefs.difficulty;diff.onchange=()=>{prefs.difficulty=diff.value;localStorage.setItem('chimpions:difficulty',prefs.difficulty)}}
+  $('#quick').onclick=()=>{ensureAudio();sfx('ui');start(currentMode(),currentDifficulty())};$('#onlineBtn').onclick=()=>{ensureAudio();sfx('ui');cleanup();online(currentMode())};bindNav()
 }
 
-function start(mode=MODES.tactical){
-  cleanup();screen='battle';ensureAudio();
+function start(mode=MODES.tactical,difficulty=prefs.difficulty){
+  cleanup();screen='battle';ensureAudio();cpuDifficulty=Object.values(CPU_DIFFICULTIES).includes(difficulty)?difficulty:CPU_DIFFICULTIES.standard;
+  prefs.difficulty=cpuDifficulty;localStorage.setItem('chimpions:difficulty',cpuDifficulty);
   const starter=Math.random()<.5?0:1;
   game=createMatch(cards,{deckSize:6,maxRounds:24,mode,starter});
   renderBattle();startBattleMusic({restart:true});sfx('ui');if(game.active===1)scheduleCpu();
@@ -140,7 +168,7 @@ function start(mode=MODES.tactical){
 function statMarkup(c,a,interactive,selected,disabled){
   const tag=interactive?'button':'div',reason=disabled?'Locked in Tactical mode because this attribute was used last round.':'',attrs=interactive?`data-stat="${a}" ${disabled?'disabled':''} ${reason?`title="${reason}" aria-label="${a} ${c.stats[a]}. ${reason}"`:''}`:'',meta=ATTRIBUTE_UI[a]||{icon:'•',short:a};
   return `<${tag} class="stat attr-${attrSlug(a)} ${selected===a?'selected':''} ${disabled?'locked':''}" ${attrs}>
-    <span class="stat-icon">${meta.icon}</span><span class="stat-name">${a}</span><b>${c.stats[a]}</b>${disabled?'<small class="stat-lock">LOCKED</small>':''}<i style="--v:${c.stats[a]}%"></i>
+    <span class="stat-icon">${attrIcon(a)}</span><span class="stat-name">${a}</span><b>${c.stats[a]}</b>${disabled?'<small class="stat-lock">LOCKED</small>':''}<i style="--v:${c.stats[a]}%"></i>
   </${tag}>`
 }
 function card(c,{hidden=false,interactive=false,selected=null,slot='player',disabledAttrs=[],outcome=null,reveal=false}={}){
@@ -149,7 +177,7 @@ function card(c,{hidden=false,interactive=false,selected=null,slot='player',disa
   const affinity=topAttribute(c),peak=c.stats[affinity],outcomeClass=outcome?` round-${outcome}`:'';
   return `<article class="card premium-card ${slot} affinity-${attrSlug(affinity)}${outcomeClass} ${reveal?'just-revealed':''}" data-card-tilt>
     <div class="card-foil"></div><div class="card-glint"></div><div class="card-inner">
-      <div class="art"><img src="${c.image}" alt="${escapeHtml(c.name)}" loading="eager"><span class="tribe-badge">${escapeHtml(c.tribe||'Unaligned')}</span><em class="edge-badge">${ATTRIBUTE_UI[affinity].icon} ${affinity} ${peak}</em></div>
+      <div class="art"><img src="${c.image}" alt="${escapeHtml(c.name)}" loading="eager"><span class="tribe-badge">${escapeHtml(c.tribe||'Unaligned')}</span><em class="edge-badge">${attrIcon(affinity)} ${affinity} ${peak}</em></div>
       <div class="cardhead"><small>#${String(c.id).padStart(3,'0')}</small><h2>${escapeHtml(c.name)}</h2><i>${ATTRIBUTE_UI[affinity].short}</i></div>
       <div class="stats">${ATTRIBUTES.map(a=>statMarkup(c,a,interactive,selected,disabledAttrs.includes(a))).join('')}</div>
     </div>
@@ -199,13 +227,26 @@ function continueRound(){
   if(roundAdvanceTimer){clearTimeout(roundAdvanceTimer);timers.delete(roundAdvanceTimer);roundAdvanceTimer=null}
   afterReveal()
 }
+function bindBattleKeys({canChoose=false,reveal=false,online=false}={}){
+  document.onkeydown=e=>{
+    const tag=document.activeElement?.tagName;if(['INPUT','SELECT','TEXTAREA'].includes(tag))return;
+    if(reveal&&!online&&(e.key==='Enter'||e.key===' ')){e.preventDefault();$('#continueRound')?.click();return}
+    if(!canChoose)return;
+    if(/^[1-6]$/.test(e.key)){
+      const target=document.querySelector('[data-stat="'+ATTRIBUTES[Number(e.key)-1]+'"]');
+      if(target&&!target.disabled){e.preventDefault();target.click()}return
+    }
+    if(e.key.toLowerCase()==='s'){const swap=online?$('#netSwap'):$('#swap');if(swap&&!swap.disabled){e.preventDefault();swap.click()}}
+  };
+  schedule(()=>{const target=reveal&&!online?$('#continueRound'):canChoose?document.querySelector('[data-stat]:not(:disabled)'):null;target?.focus()},35)
+}
 function idleVersus(canChoose,pot=0){
   return `<div class="versus idle-versus"><div class="arena-core"><span>VS</span></div><b>${canChoose?'CHOOSE YOUR EDGE':'OPPONENT THINKING'}</b>${pot?`<div class="pot">POT × ${pot}</div>`:''}</div>`
 }
 function duelVersus(result,rightLabel='CPU'){
   const state=result.winner===null?'tie':result.winner===0?'you-win':'rival-win',winner=result.winner===null?null:result.cards[result.winner],verdict=result.winner===null?'STANDOFF':result.winner===0?'YOU WIN THE DUEL':`${rightLabel} WINS THE DUEL`;
   return `<div class="versus reveal-versus ${state}">
-    <div class="duel-attribute"><i>${ATTRIBUTE_UI[result.attribute]?.icon||'◆'}</i><span>${result.attribute} DUEL</span></div>
+    <div class="duel-attribute"><i>${attrIcon(result.attribute)}</i><span>${result.attribute} DUEL</span></div>
     <div class="duel-scoreline"><div><small>YOU</small><b class="score-value" data-target="${result.values[0]}">0</b></div><i>VS</i><div><small>${rightLabel}</small><b class="score-value" data-target="${result.values[1]}">0</b></div></div>
     <div class="duel-verdict">${verdict}</div>
     <div class="duel-winner-name">${winner?escapeHtml(winner.name):'THE POT GROWS'}</div>
@@ -233,7 +274,7 @@ function renderBattle(){
   const banner=reveal?`${result.attribute.toUpperCase()} LOCKED • ROUND RESOLVED`:canChoose?'YOUR TURN • CHOOSE AN ATTRIBUTE':'CPU IS SCANNING THE MATCHUP';
   app.innerHTML=nav()+`<main class="arena ${roundClass} ${phaseClass}">
     <div class="arena-atmosphere"><i></i><i></i><i></i></div>
-    ${battleHud(game.decks[0].length,game.decks[1].length,'CPU',game.round,game.maxRounds,game.mode,game.pot.length*2)}
+    ${battleHud(game.decks[0].length,game.decks[1].length,'CPU',game.round,game.maxRounds,game.mode+' · '+cpuDifficulty+' CPU',game.pot.length*2)}
     <div class="turn-banner ${canChoose?'your-turn':''} ${reveal?'result-banner':''}">${banner}</div>
     ${game.mode===MODES.tactical?tacticalStatus(game,['YOU','CPU']):''}
     <section class="table">
@@ -244,12 +285,12 @@ function renderBattle(){
     ${reveal?captureFx(result):''}
     ${reveal?'<div class="round-actions"><button class="primary continue-round" id="continueRound">Next round</button><small>Auto-continues in '+(revealHoldMs()/1000).toFixed(1)+'s · '+(prefs.fast?'Fast':'Normal')+' pace</small></div>':''}
     <aside class="battle-log"><h3>Battle telemetry</h3>${historyHtml()}</aside>
-    <div id="announcer" class="sr-only" aria-live="assertive">${status}</div>
+    <div id="announcer" class="sr-only" aria-live="polite">${status}</div>
   </main>`;
   bindNav();if(reveal)animateDuelScores();
   if(canChoose)document.querySelectorAll('[data-stat]').forEach(b=>b.onclick=()=>choose(b.dataset.stat));
   const sw=$('#swap');if(sw)bindSwapPreview(sw,doSwap);
-  const next=$('#continueRound');if(next)next.onclick=continueRound;
+  const next=$('#continueRound');if(next)next.onclick=continueRound;bindBattleKeys({canChoose,reveal,online:false});
   preload(game.decks[0][1]?.image);preload(game.decks[1][1]?.image)
 }
 function choose(attribute){
@@ -269,10 +310,10 @@ function scheduleCpu(){
   schedule(()=>{
     if(!game||game.finished||game.phase!=='choose'||game.active!==1)return;
     const banned=game.mode===MODES.tactical?game.lastAttribute:null;
-    let chosen=chooseCpuAttribute(game.decks[1][0],cards,banned);
+    let chosen=chooseCpuAttribute(game.decks[1][0],cards,banned,{difficulty:cpuDifficulty,rng:Math.random});
     const strength=attributeWinRate(game.decks[1][0],chosen,cards);
     if(game.mode===MODES.tactical&&game.swaps[1]&&game.decks[1].length>1&&strength<.42){
-      reserveSwap(game,1);sfx('swap');renderBattle();chosen=chooseCpuAttribute(game.decks[1][0],cards,banned)
+      reserveSwap(game,1);sfx('swap');renderBattle();chosen=chooseCpuAttribute(game.decks[1][0],cards,banned,{difficulty:cpuDifficulty,rng:Math.random})
     }
     const r=resolveRound(game,chosen,1);sfx('reveal');schedule(()=>roundSound(r),650);renderBattle();queueRoundAdvance()
   },CPU_THINK_MS)
@@ -291,7 +332,7 @@ function finish(){
     <div class="result-metrics"><span><b>${out.roundsPlayed}</b> rounds</span><span><b>${margin}</b> card margin</span><span><b>${out.history.filter(h=>h.winner===null).length}</b> standoffs</span></div>
     <div class="result-actions"><button class="primary" id="again">Rematch</button><button data-go="menu">Main menu</button></div>
   </main>`;
-  $('#again').onclick=()=>start(game.mode);bindNav()
+  $('#again').onclick=()=>start(game.mode,cpuDifficulty);bindNav()
 }
 
 function gallery(){
@@ -302,7 +343,7 @@ function gallery(){
     let list=cards.filter(c=>(c.name+' '+(c.tribe||'')).toLowerCase().includes(q)&&(!tribe||c.tribe===tribe));
     list=[...list].sort((a,b)=>sort==='name'?a.name.localeCompare(b.name):ATTRIBUTES.includes(sort)?b.stats[sort]-a.stats[sort]:Number(a.id)-Number(b.id));
     $('#grid').innerHTML=list.length?list.map(c=>{const edge=topAttribute(c);return `<button class="tile affinity-${attrSlug(edge)}" data-id="${c.id}">
-      <div class="tile-art"><span class="tile-foil"></span><img loading="lazy" src="${c.image}" alt="${escapeHtml(c.name)}"><em>${ATTRIBUTE_UI[edge].icon} ${edge} ${c.stats[edge]}</em></div>
+      <div class="tile-art"><span class="tile-foil"></span><img loading="lazy" src="${c.image}" alt="${escapeHtml(c.name)}"><em>${attrIcon(edge)} ${edge} ${c.stats[edge]}</em></div>
       <div class="tile-head"><small>#${String(c.id).padStart(3,'0')}</small><b>${escapeHtml(c.name)}</b></div><span>${escapeHtml(c.tribe||'Unaligned')}</span>
     </button>`}).join(''):`<div class="empty-search">No Chimpions match these filters.</div>`;
     bindImages();document.querySelectorAll('.tile').forEach(t=>t.onclick=()=>showDetail(t.dataset.id))
@@ -344,9 +385,9 @@ function netBattle(m){
     ${m.mode===MODES.tactical?tacticalStatus({lastAttribute:m.lastAttribute,active:m.turn?0:1,swaps:m.swaps},['YOU','RIVAL']):''}
     <section class="table"><div class="player-slot">${card(m.card,{interactive:m.turn,slot:'player',disabledAttrs:disabled})}${m.mode===MODES.tactical?`<button class="swap" id="netSwap" ${!m.turn||!m.swaps?.[0]?'disabled':''}>Reserve swap <b>${m.swaps?.[0]||0}</b></button>`:''}</div>
     ${idleVersus(m.turn,m.pot)}
-    <div class="opponent-slot">${card(null,{hidden:true,slot:'opponent'})}</div></section><div id="announcer" class="sr-only" aria-live="assertive">${m.turn?'Your move':'Opponent turn'}</div></main>`;bindNav();
+    <div class="opponent-slot">${card(null,{hidden:true,slot:'opponent'})}</div></section><div id="announcer" class="sr-only" aria-live="polite">${m.turn?'Your move':'Opponent turn'}</div></main>`;bindNav();
   if(m.turn)document.querySelectorAll('[data-stat]').forEach(b=>b.onclick=()=>{sfx('select');sendWs({type:'action',action:b.dataset.stat})});
-  const sw=$('#netSwap');if(sw)bindSwapPreview(sw,()=>sendWs({type:'swap'}));startDeadline(m.deadline)
+  const sw=$('#netSwap');if(sw)bindSwapPreview(sw,()=>sendWs({type:'swap'}));bindBattleKeys({canChoose:m.turn,reveal:false,online:true});startDeadline(m.deadline)
 }
 function netReveal(m){
   for(const id of intervals)clearInterval(id);intervals.clear();const winner=m.winner===null?null:m.winner==='you'?0:1,cls=winner===null?'is-tie':winner===0?'is-win':'is-loss',status=winner===null?'STANDOFF':winner===0?'YOU WIN':'RIVAL WINS',result={cards:m.cards,values:m.values,attribute:m.attribute,winner};
@@ -359,7 +400,7 @@ function netReveal(m){
     ${duelVersus(result,'RIVAL')}
     <div class="opponent-slot">${card(m.cards[1],{selected:m.attribute,slot:'opponent',outcome:winner===null?'tie':winner===1?'winner':'loser',reveal:true})}</div></section>
     ${captureFx(result)}
-    <div id="announcer" class="sr-only" aria-live="assertive">${status}</div></main>`;bindNav();animateDuelScores()
+    <div id="announcer" class="sr-only" aria-live="polite">${status}</div></main>`;bindNav();animateDuelScores();bindBattleKeys({canChoose:false,reveal:true,online:true})
 }
 function netGameOver(m){
   stopBattleMusic(true);
