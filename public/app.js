@@ -42,6 +42,12 @@ function sfx(type){
   (map[type]||map.ui).forEach((freq,i)=>tone(freq,type==='reveal'?.2:.15,type==='final'?.05:.042,i%2?'triangle':'sine',i*.065))
 }
 const BATTLE_THEME_URL='/audio/battle-theme.mp3',BATTLE_MUSIC_VOLUME=.32;
+const ARENA_VIDEO_URL='/video/crowd-and-flag.mp4';
+const OFFICIAL_LINKS={
+  site:'https://www.chimpions.co/',
+  x:'https://x.com/TheChimpions',
+  discord:'https://discord.gg/thechimpions'
+};
 function duckBattleMusic(ms=900){
   if(!battleTrack||battleTrack.paused)return;
   battleTrack.volume=BATTLE_MUSIC_VOLUME*.38;
@@ -104,7 +110,23 @@ function renderAudioButtons(){
   if(r){r.textContent='MOTION '+prefs.motion.toUpperCase();r.setAttribute('aria-pressed',String(motionReduced()))}
 }
 
-function nav(){const pace=screen==='battle'?'<button class="pace-toggle" id="paceToggle" aria-label="Toggle reveal pace"></button>':'';return `<header><button class="brand" data-go="menu"><b>CHIMPIONS</b><span>ATTRIBUTE ARENA</span></button><nav><button data-go="gallery">Collection</button><button data-go="help">How to play</button>${pace}<button class="motion-toggle" id="motionToggle" aria-label="Cycle motion preference"></button><button class="audio-toggle" id="musicToggle" aria-label="Toggle music"></button><button class="audio-toggle" id="sfxToggle" aria-label="Toggle sound effects"></button></nav></header>`}
+function officialLinks(compact=false){
+  return `<div class="${compact?'nav-socials':'official-links'}">
+    <a href="${OFFICIAL_LINKS.site}" target="_blank" rel="noreferrer" aria-label="Official Chimpions website">${compact?'WEB':'Official Chimpions'}<span>↗</span></a>
+    <a href="${OFFICIAL_LINKS.x}" target="_blank" rel="noreferrer" aria-label="Chimpions on X">${compact?'X':'X / TheChimpions'}<span>↗</span></a>
+    <a href="${OFFICIAL_LINKS.discord}" target="_blank" rel="noreferrer" aria-label="Chimpions Discord">${compact?'DISCORD':'Discord'}<span>↗</span></a>
+  </div>`
+}
+function backgroundVideo(kind='battle'){
+  return `<div class="arena-video arena-video-${kind}" aria-hidden="true">
+    <video autoplay muted loop playsinline preload="metadata">
+      <source src="${ARENA_VIDEO_URL}" type="video/mp4">
+    </video>
+    <div class="arena-video-color"></div>
+    <div class="arena-video-vignette"></div>
+  </div>`
+}
+function nav(){const pace=screen==='battle'?'<button class="pace-toggle" id="paceToggle" aria-label="Toggle reveal pace"></button>':'';return `<header><button class="brand" data-go="menu" aria-label="Chimpions Arena home"><b>CHIMPIONS</b><span>ARENA</span></button>${officialLinks(true)}<nav><button data-go="gallery">Collection</button><button data-go="help">How to play</button>${pace}<button class="motion-toggle" id="motionToggle" aria-label="Cycle motion preference"></button><button class="audio-toggle" id="musicToggle" aria-label="Toggle music"></button><button class="audio-toggle" id="sfxToggle" aria-label="Toggle sound effects"></button></nav></header>`}
 function bindNav(){
   document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));
   const s=$('#sfxToggle'),m=$('#musicToggle'),p=$('#paceToggle'),r=$('#motionToggle');if(s)s.onclick=()=>toggleAudio('sfx');if(m)m.onclick=()=>toggleAudio('music');if(p)p.onclick=togglePace;if(r)r.onclick=toggleMotion;applyMotionPreference();renderAudioButtons();bindImages();bindCardTilt();
@@ -153,7 +175,20 @@ function menu(){
   screen='menu';
   const v=manifest?validateCollection(manifest):null;
   const collectionNote=v?`<div class="collection-status"><span class="live-dot"></span><b>${v.count} playable Chimpions</b><small>Official API collection snapshot</small></div>`:'';
-  app.innerHTML=nav()+`<main class="hero"><div class="hero-copy"><div class="eyebrow">${cards.length} ANIMATED CHIMPIONS • COMPETITIVE CARD BATTLE</div><h1>Every Chimpion<br><em>has a way to win.</em></h1><p>Read the matchup, pick the edge, and claim the standoff pot.</p><fieldset class="mode-picker"><legend>Ruleset</legend><label><input type="radio" name="mode" value="classic"><span><b>Classic</b><small>Traditional • winner chooses next</small></span></label><label><input type="radio" name="mode" value="tactical" checked><span><b>Tactical ★</b><small>Recommended • alternating turns • no repeat • 1 reserve swap</small></span></label></fieldset><label class="difficulty-picker"><span>CPU difficulty</span><select id="cpuDifficulty"><option value="easy">Easy</option><option value="standard">Standard</option><option value="expert">Expert</option></select><small>Fair AI only: difficulty changes decision quality, never hidden information.</small></label><div class="actions"><button class="primary" id="quick">Play vs CPU</button><button id="onlineBtn">Private 1v1</button></div><div class="features"><span>⚡ 5–8 min matches</span><span>◆ Equal stat budget</span><span>◎ Animated originals</span></div>${collectionNote}</div><div class="hero-card-stack" aria-hidden="true">${heroCards()}<div class="hero-glow"></div></div></main>`;
+  app.innerHTML=nav()+`<main class="hero arena-home">${backgroundVideo('home')}<div class="hero-copy">
+    <div class="hero-logo-lockup"><div class="hero-logo-title">The Chimpions</div><div class="hero-logo-arena">Arena</div><div class="hero-logo-subtitle">Animated card battles from the Chimpions universe</div></div>
+    <div class="eyebrow">${cards.length} PLAYABLE CHIMPIONS • CPU + PRIVATE 1V1</div>
+    <h1>Read the card.<br><em>Own the arena.</em></h1>
+    <p>Choose the strongest edge, reveal the rival, build the standoff pot, and turn every matchup into a tactical duel.</p>
+    <fieldset class="mode-picker"><legend>Ruleset</legend>
+      <label><input type="radio" name="mode" value="classic"><span><b>Classic</b><small>Traditional battle flow. The winner keeps initiative and chooses the next attribute.</small></span></label>
+      <label><input type="radio" name="mode" value="tactical" checked><span><b>Tactical ★</b><small>Recommended competitive mode. The chooser alternates every round, the last-used attribute is locked for the next duel, and each side gets one Reserve Swap.</small></span></label>
+    </fieldset>
+    <label class="difficulty-picker"><span>CPU difficulty</span><select id="cpuDifficulty"><option value="easy">Easy</option><option value="standard">Standard</option><option value="expert">Expert</option></select><small>Easy makes more imperfect reads. Standard is balanced. Expert chooses the strongest legal edge — never using hidden information.</small></label>
+    <div class="actions"><button class="primary" id="quick">Enter vs CPU</button><button id="onlineBtn">Private 1v1</button></div>
+    <div class="features"><span>Fast / Normal reveal pace</span><span>Keyboard 1–6 + S</span><span>Battle music + audio ducking</span></div>
+    ${officialLinks(false)}${collectionNote}
+  </div><div class="hero-card-stack" aria-hidden="true">${heroCards()}<div class="hero-glow"></div></div></main>`;
   const diff=$('#cpuDifficulty');if(diff){diff.value=prefs.difficulty;diff.onchange=()=>{prefs.difficulty=diff.value;localStorage.setItem('chimpions:difficulty',prefs.difficulty)}}
   $('#quick').onclick=()=>{ensureAudio();sfx('ui');start(currentMode(),currentDifficulty())};$('#onlineBtn').onclick=()=>{ensureAudio();sfx('ui');cleanup();online(currentMode())};bindNav()
 }
@@ -273,6 +308,7 @@ function renderBattle(){
   const pOutcome=reveal?(result.winner===null?'tie':result.winner===0?'winner':'loser'):null,oOutcome=reveal?(result.winner===null?'tie':result.winner===1?'winner':'loser'):null;
   const banner=reveal?`${result.attribute.toUpperCase()} LOCKED • ROUND RESOLVED`:canChoose?'YOUR TURN • CHOOSE AN ATTRIBUTE':'CPU IS SCANNING THE MATCHUP';
   app.innerHTML=nav()+`<main class="arena ${roundClass} ${phaseClass}">
+    ${backgroundVideo('battle')}
     <div class="arena-atmosphere"><i></i><i></i><i></i></div>
     ${battleHud(game.decks[0].length,game.decks[1].length,'CPU',game.round,game.maxRounds,game.mode+' · '+cpuDifficulty+' CPU',game.pot.length*2)}
     <div class="turn-banner ${canChoose?'your-turn':''} ${reveal?'result-banner':''}">${banner}</div>
@@ -352,7 +388,7 @@ function gallery(){
 }
 function showDetail(id){const c=cards.find(x=>String(x.id)===String(id));if(!c)return;$('#detailBody').innerHTML=`<div class="detail-art"><img src="${c.image}" alt="${escapeHtml(c.name)}"></div><div><small>#${String(c.id).padStart(3,'0')} • ${escapeHtml(c.tribe||'Unaligned')}</small><h2>${escapeHtml(c.name)}</h2><div class="detail-stats">${ATTRIBUTES.map(a=>`<div><span>${a}</span><b>${c.stats[a]}</b><i style="--v:${c.stats[a]}%"></i></div>`).join('')}</div></div>`;bindImages();$('#detail').showModal()}
 
-function help(){app.innerHTML=nav()+`<main class="copy"><small>30-SECOND GUIDE</small><h1>How to play</h1><ol><li>Study your visible Chimpion and choose one of its six game stats.</li><li>The rival card reveals. The higher value wins both cards.</li><li>A tie creates a standoff pot. The next decisive winner claims everything.</li><li><b>Classic:</b> the round winner chooses the next attribute; a tie keeps initiative.</li><li><b>Tactical:</b> initiative alternates every round, the last attribute cannot be repeated, and each player gets one reserve swap.</li><li>If the round limit or deck exhaustion arrives with an unresolved pot, tied cards return to their original owners before final scoring.</li></ol><p>Game stats use an equal deterministic budget. They are not rarity, price, or official collection rankings.</p><button class="primary" id="go">Enter the arena</button></main>`;$('#go').onclick=()=>start();bindNav()}
+function help(){app.innerHTML=nav()+`<main class="copy"><small>CHIMPIONS ARENA • QUICK GUIDE</small><h1>How to play</h1><ol><li>Study your visible Chimpion and choose one of its six game attributes. Keyboard players can use <b>1–6</b>.</li><li>The rival card reveals. The higher value wins both cards; the duel score remains visible long enough to read, or you can press <b>Next round</b>.</li><li>A tie creates a <b>Standoff Pot</b>. Those cards stay in the middle until the next decisive duel.</li><li><b>Classic:</b> the round winner keeps initiative and chooses the next attribute.</li><li><b>Tactical:</b> the chooser alternates every round. The attribute used last round becomes locked, and each side receives one Reserve Swap. Press <b>S</b> to prepare the swap.</li><li><b>Fast Pace</b> shortens CPU reveal time. Motion can be Auto, Reduced, or Full. Music automatically ducks under reveal and winner SFX.</li><li>If the match ends with an unresolved pot, tied cards return to their original owners before final scoring.</li></ol><p>Game stats use an equal deterministic budget. They are gameplay attributes — not rarity, market value, or official collection rankings.</p>${officialLinks(false)}<button class="primary" id="go">Enter Chimpions Arena</button></main>`;$('#go').onclick=()=>start();bindNav()}
 
 function online(defaultMode=MODES.tactical){
   cleanup();screen='online';
@@ -379,7 +415,7 @@ function deadlineMarkup(deadline){return deadline?`<span class="deadline">TURN <
 function startDeadline(deadline){if(!deadline)return;const draw=()=>{const el=$('#turnTimer');if(el)el.textContent=Math.max(0,Math.ceil((deadline-Date.now())/1000))};draw();every(draw,250)}
 function netBattle(m){
   screen='online';startBattleMusic();for(const id of intervals)clearInterval(id);intervals.clear();const legal=m.legal||ATTRIBUTES,disabled=ATTRIBUTES.filter(a=>!legal.includes(a));
-  app.innerHTML=nav()+`<main class="arena choose-phase"><div class="arena-atmosphere"><i></i><i></i><i></i></div>
+  app.innerHTML=nav()+`<main class="arena choose-phase">${backgroundVideo('battle')}<div class="arena-atmosphere"><i></i><i></i><i></i></div>
     ${battleHud(m.counts[0],m.counts[1],'RIVAL',m.round,m.maxRounds,m.mode,m.pot)}
     <div class="turn-banner ${m.turn?'your-turn':''}">${m.turn?'YOUR TURN • CHOOSE AN ATTRIBUTE':'RIVAL IS CHOOSING'} ${deadlineMarkup(m.deadline)}</div>
     ${m.mode===MODES.tactical?tacticalStatus({lastAttribute:m.lastAttribute,active:m.turn?0:1,swaps:m.swaps},['YOU','RIVAL']):''}
@@ -393,7 +429,7 @@ function netReveal(m){
   for(const id of intervals)clearInterval(id);intervals.clear();const winner=m.winner===null?null:m.winner==='you'?0:1,cls=winner===null?'is-tie':winner===0?'is-win':'is-loss',status=winner===null?'STANDOFF':winner===0?'YOU WIN':'RIVAL WINS',result={cards:m.cards,values:m.values,attribute:m.attribute,winner};
   sfx('reveal');schedule(()=>sfx(winner===null?'tie':winner===0?'win':'lose'),650);
   const counts=m.counts||netState?.counts||['—','—'],round=m.round||netState?.round||'—',maxRounds=m.maxRounds||netState?.maxRounds||24,mode=m.mode||netState?.mode||MODES.tactical;
-  app.innerHTML=nav()+`<main class="arena ${cls} reveal-phase"><div class="arena-atmosphere"><i></i><i></i><i></i></div>
+  app.innerHTML=nav()+`<main class="arena ${cls} reveal-phase">${backgroundVideo('battle')}<div class="arena-atmosphere"><i></i><i></i><i></i></div>
     ${battleHud(counts[0],counts[1],'RIVAL',round,maxRounds,mode,m.pot||0)}
     <div class="turn-banner result-banner">${m.attribute.toUpperCase()} LOCKED • ROUND RESOLVED</div>
     <section class="table"><div class="player-slot">${card(m.cards[0],{selected:m.attribute,slot:'player',outcome:winner===null?'tie':winner===0?'winner':'loser'})}</div>
