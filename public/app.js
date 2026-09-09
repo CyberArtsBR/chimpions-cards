@@ -8,7 +8,7 @@ let cards=[],manifest=null,game=null,screen='menu',epoch=0,socket=null,netState=
 const timers=new Set(),intervals=new Set();
 const REVEAL_HOLD_MS=3000,CPU_THINK_MS=900;
 const prefs={sfx:localStorage.getItem('chimpions:sfx')!=='off',music:localStorage.getItem('chimpions:music')!=='off'};
-let audioCtx=null,musicInterval=null,musicStep=0,musicMaster=null,noiseBuffer=null,audioUnlockArmed=false;
+let audioCtx=null,battleTrack=null,battleMusicUnlockArmed=false;
 
 const placeholder=`data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600"><rect width="600" height="600" fill="#111527"/><circle cx="300" cy="260" r="120" fill="#242b45"/><text x="300" y="300" text-anchor="middle" font-family="sans-serif" font-size="128" font-weight="800" fill="#c8ff42">C</text><text x="300" y="450" text-anchor="middle" font-family="sans-serif" font-size="28" fill="#aeb5cc">CHIMPION</text></svg>`)}`;
 
@@ -16,64 +16,66 @@ function schedule(fn,ms){const e=epoch,id=setTimeout(()=>{timers.delete(id);if(e
 function every(fn,ms){const e=epoch,id=setInterval(()=>{if(e===epoch)fn();else{clearInterval(id);intervals.delete(id)}},ms);intervals.add(id);return id}
 function cleanup({closeSocket=true}={}){
   epoch++; for(const id of timers)clearTimeout(id);timers.clear();for(const id of intervals)clearInterval(id);intervals.clear();
+  stopBattleMusic(true);
   if(closeSocket&&socket){try{socket.close()}catch{}socket=null;netState=null}
 }
 function go(name){cleanup();screen=name;({menu,gallery,help,online}[name]||menu)()}
 
 function ensureAudio(){
-  if(!audioCtx){
-    audioCtx=new (window.AudioContext||window.webkitAudioContext)();
-    musicMaster=audioCtx.createGain();musicMaster.gain.value=.78;musicMaster.connect(audioCtx.destination);
-    noiseBuffer=audioCtx.createBuffer(1,Math.floor(audioCtx.sampleRate*.09),audioCtx.sampleRate);
-    const data=noiseBuffer.getChannelData(0);for(let i=0;i<data.length;i++)data[i]=Math.random()*2-1;
-  }
+  if(!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();
   if(audioCtx.state==='suspended')audioCtx.resume().catch(()=>{});
-  if(prefs.music&&!musicInterval){musicStep=0;musicBeat();musicInterval=setInterval(musicBeat,420)}
 }
-function tone(freq,duration=.12,gain=.035,type='sine',delay=0,bus='sfx'){
-  if(!audioCtx)return;const t=audioCtx.currentTime+delay,o=audioCtx.createOscillator(),g=audioCtx.createGain(),dest=bus==='music'&&musicMaster?musicMaster:audioCtx.destination;
-  o.type=type;o.frequency.setValueAtTime(freq,t);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(gain,t+.018);g.gain.exponentialRampToValueAtTime(.0001,t+duration);o.connect(g).connect(dest);o.start(t);o.stop(t+duration+.04)
-}
-function noiseHit(duration=.05,gain=.012){
-  if(!audioCtx||!noiseBuffer||!musicMaster)return;const src=audioCtx.createBufferSource(),filter=audioCtx.createBiquadFilter(),g=audioCtx.createGain(),t=audioCtx.currentTime;
-  src.buffer=noiseBuffer;filter.type='highpass';filter.frequency.value=2600;g.gain.setValueAtTime(gain,t);g.gain.exponentialRampToValueAtTime(.0001,t+duration);src.connect(filter).connect(g).connect(musicMaster);src.start(t);src.stop(t+duration)
+function tone(freq,duration=.12,gain=.035,type='sine',delay=0){
+  if(!audioCtx)return;const t=audioCtx.currentTime+delay,o=audioCtx.createOscillator(),g=audioCtx.createGain();
+  o.type=type;o.frequency.setValueAtTime(freq,t);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(gain,t+.018);g.gain.exponentialRampToValueAtTime(.0001,t+duration);o.connect(g).connect(audioCtx.destination);o.start(t);o.stop(t+duration+.04)
 }
 function sfx(type){
   if(!prefs.sfx)return;ensureAudio();
   const map={ui:[520],select:[360,620,920],reveal:[150,300,600],win:[440,660,880,1320],lose:[240,180,120],tie:[330,440,330],swap:[520,390],final:[523,659,784,1047,1318]};
   (map[type]||map.ui).forEach((freq,i)=>tone(freq,type==='reveal'?.2:.15,type==='final'?.05:.042,i%2?'triangle':'sine',i*.065))
 }
-function musicBeat(){
-  if(!prefs.music||!audioCtx||audioCtx.state!=='running')return;
-  const step=musicStep++%16,bass=[55,55,65.41,49],arp=[220,261.63,329.63,392,329.63,261.63,246.94,293.66,220,261.63,349.23,440,349.23,293.66,246.94,196];
-  tone(arp[step],.2,.013,step%2?'triangle':'sine',0,'music');
-  if(step%4===0)tone(bass[(step/4)%bass.length],.72,.03,'sine',0,'music');
-  if(step%8===0){
-    const root=step===0?[110,164.81,220]:[98,146.83,196];
-    root.forEach((freq,i)=>tone(freq,1.7,.0065,'sine',i*.02,'music'));
+const BATTLE_THEME_URL='/audio/battle-theme.mp3',BATTLE_MUSIC_VOLUME=.32;
+function ensureBattleTrack(){
+  if(!battleTrack){
+    battleTrack=new Audio(BATTLE_THEME_URL);battleTrack.loop=true;battleTrack.preload='auto';battleTrack.volume=BATTLE_MUSIC_VOLUME;
+    battleTrack.addEventListener('error',()=>console.warn('Battle theme failed to load.'));
   }
-  if([2,6,10,14].includes(step))noiseHit(.045,.009);
+  return battleTrack
 }
-function toggleAudio(kind){
-  prefs[kind]=!prefs[kind];localStorage.setItem(`chimpions:${kind}`,prefs[kind]?'on':'off');
-  if(prefs[kind])ensureAudio();
-  if(kind==='music'&&!prefs.music&&musicInterval){clearInterval(musicInterval);musicInterval=null}
-  renderAudioButtons()
-}
-function renderAudioButtons(){const s=$('#sfxToggle'),m=$('#musicToggle');if(s){s.textContent=prefs.sfx?'SFX ON':'SFX OFF';s.setAttribute('aria-pressed',String(prefs.sfx))}if(m){m.textContent=prefs.music?'MUSIC ON':'MUSIC OFF';m.setAttribute('aria-pressed',String(prefs.music))}}
-function armAudioUnlock(){
-  if(!prefs.music||audioCtx?.state==='running'||audioUnlockArmed)return;
-  audioUnlockArmed=true;
+function armBattleMusicUnlock(){
+  if(!prefs.music||battleMusicUnlockArmed)return;
+  battleMusicUnlockArmed=true;
   const unlock=()=>{
-    audioUnlockArmed=false;window.removeEventListener('pointerdown',unlock,true);window.removeEventListener('keydown',unlock,true);ensureAudio();
+    battleMusicUnlockArmed=false;window.removeEventListener('pointerdown',unlock,true);window.removeEventListener('keydown',unlock,true);
+    if(screen==='battle'||(screen==='online'&&netState))startBattleMusic()
   };
   window.addEventListener('pointerdown',unlock,{once:true,capture:true});window.addEventListener('keydown',unlock,{once:true,capture:true})
 }
+function startBattleMusic({restart=false}={}){
+  if(!prefs.music)return;
+  const t=ensureBattleTrack();t.loop=true;t.volume=BATTLE_MUSIC_VOLUME;
+  if(restart){try{t.currentTime=0}catch{}}
+  if(!t.paused&&!restart)return;
+  const play=t.play();if(play?.catch)play.catch(()=>armBattleMusicUnlock())
+}
+function stopBattleMusic(reset=false){
+  if(!battleTrack)return;battleTrack.pause();if(reset){try{battleTrack.currentTime=0}catch{}}
+}
+function toggleAudio(kind){
+  prefs[kind]=!prefs[kind];localStorage.setItem(`chimpions:${kind}`,prefs[kind]?'on':'off');
+  if(kind==='sfx'&&prefs.sfx)ensureAudio();
+  if(kind==='music'){
+    if(prefs.music&&(screen==='battle'||(screen==='online'&&netState)))startBattleMusic();
+    else if(!prefs.music)stopBattleMusic(false)
+  }
+  renderAudioButtons()
+}
+function renderAudioButtons(){const s=$('#sfxToggle'),m=$('#musicToggle');if(s){s.textContent=prefs.sfx?'SFX ON':'SFX OFF';s.setAttribute('aria-pressed',String(prefs.sfx))}if(m){m.textContent=prefs.music?'MUSIC ON':'MUSIC OFF';m.setAttribute('aria-pressed',String(prefs.music))}}
 
 function nav(){return `<header><button class="brand" data-go="menu"><b>CHIMPIONS</b><span>ATTRIBUTE ARENA</span></button><nav><button data-go="gallery">Collection</button><button data-go="help">How to play</button><button class="audio-toggle" id="musicToggle" aria-label="Toggle music"></button><button class="audio-toggle" id="sfxToggle" aria-label="Toggle sound effects"></button></nav></header>`}
 function bindNav(){
   document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));
-  const s=$('#sfxToggle'),m=$('#musicToggle');if(s)s.onclick=()=>toggleAudio('sfx');if(m)m.onclick=()=>toggleAudio('music');renderAudioButtons();bindImages();bindCardTilt();armAudioUnlock();
+  const s=$('#sfxToggle'),m=$('#musicToggle');if(s)s.onclick=()=>toggleAudio('sfx');if(m)m.onclick=()=>toggleAudio('music');renderAudioButtons();bindImages();bindCardTilt();
 }
 function bindImages(){document.querySelectorAll('img').forEach(img=>{img.addEventListener('error',()=>{if(img.src!==placeholder)img.src=placeholder},{once:true})})}
 function bindCardTilt(){
@@ -120,7 +122,7 @@ function start(mode=MODES.tactical){
   cleanup();screen='battle';ensureAudio();
   const starter=Math.random()<.5?0:1;
   game=createMatch(cards,{deckSize:6,maxRounds:24,mode,starter});
-  renderBattle();sfx('ui');if(game.active===1)scheduleCpu();
+  renderBattle();startBattleMusic({restart:true});sfx('ui');if(game.active===1)scheduleCpu();
 }
 function statMarkup(c,a,interactive,selected,disabled){
   const tag=interactive?'button':'div',attrs=interactive?`data-stat="${a}" ${disabled?'disabled':''}`:'',meta=ATTRIBUTE_UI[a]||{icon:'•',short:a};
@@ -233,6 +235,7 @@ function scheduleCpu(){
   },CPU_THINK_MS)
 }
 function finish(){
+  stopBattleMusic(true);
   if(!game)return menu();const out=game.outcome||finishMatch(game),state=out.winner===0?'win':out.winner===1?'loss':'draw',margin=Math.abs(out.counts[0]-out.counts[1]);
   const title=state==='win'?'Arena conquered':state==='loss'?'Defeat':'Dead even';
   const copy=state==='win'?'Your reads converted into captures.':state==='loss'?'The CPU controlled the final card advantage.':'Neither side could break the final balance.';
@@ -273,7 +276,7 @@ function online(defaultMode=MODES.tactical){
   socket=new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/room`);
   socket.onopen=()=>setStatus('Connected — create or join a room.');
   socket.onerror=()=>setStatus('Connection problem. Check the server and try again.');
-  socket.onclose=()=>{if(screen==='online'&&$('#status'))setStatus('Connection closed. Return to the menu to reconnect.')};
+  socket.onclose=()=>{if(screen==='online'){stopBattleMusic(true);if($('#status'))setStatus('Connection closed. Return to the menu to reconnect.')}};
   socket.onmessage=e=>{let m;try{m=JSON.parse(e.data)}catch{return}handleNet(m)};
   $('#create').onclick=()=>sendWs({type:'create',mode:currentMode()});$('#join').onclick=()=>sendWs({type:'join',code:$('#code').value.trim().toUpperCase()});
 }
@@ -285,13 +288,13 @@ function handleNet(m){
   if(m.type==='state'){netState=m;return netBattle(m)}
   if(m.type==='reveal')return netReveal(m);
   if(m.type==='gameover')return netGameOver(m);
-  if(m.type==='left'){netState=null;return setStatus('Opponent disconnected. This room is closed; create a new room for a rematch.')}
+  if(m.type==='left'){stopBattleMusic(true);netState=null;return setStatus('Opponent disconnected. This room is closed; create a new room for a rematch.')}
   if(m.type==='error')return setStatus(m.message)
 }
 function deadlineMarkup(deadline){return deadline?`<span class="deadline">TURN <b id="turnTimer">--</b>s</span>`:''}
 function startDeadline(deadline){if(!deadline)return;const draw=()=>{const el=$('#turnTimer');if(el)el.textContent=Math.max(0,Math.ceil((deadline-Date.now())/1000))};draw();every(draw,250)}
 function netBattle(m){
-  screen='online';for(const id of intervals)clearInterval(id);intervals.clear();const legal=m.legal||ATTRIBUTES,disabled=ATTRIBUTES.filter(a=>!legal.includes(a));
+  screen='online';startBattleMusic();for(const id of intervals)clearInterval(id);intervals.clear();const legal=m.legal||ATTRIBUTES,disabled=ATTRIBUTES.filter(a=>!legal.includes(a));
   app.innerHTML=nav()+`<main class="arena choose-phase"><div class="arena-atmosphere"><i></i><i></i><i></i></div>
     ${battleHud(m.counts[0],m.counts[1],'RIVAL',m.round,m.maxRounds,m.mode,m.pot)}
     <div class="turn-banner ${m.turn?'your-turn':''}">${m.turn?'YOUR TURN • CHOOSE AN ATTRIBUTE':'RIVAL IS CHOOSING'} ${deadlineMarkup(m.deadline)}</div>
@@ -315,6 +318,7 @@ function netReveal(m){
     <div id="announcer" class="sr-only" aria-live="assertive">${status}</div></main>`;bindNav();animateDuelScores()
 }
 function netGameOver(m){
+  stopBattleMusic(true);
   const state=m.winner==='you'?'win':m.winner==='draw'?'draw':'loss',title=state==='win'?'Victory':state==='draw'?'Draw':'Defeat',margin=Math.abs(m.counts[0]-m.counts[1]);
   if(state==='win')sfx('final');else sfx(state==='draw'?'tie':'lose');
   app.innerHTML=nav()+`<main class="result match-result ${state}"><div class="result-aura"></div><div class="result-kicker">PRIVATE 1V1 • MATCH COMPLETE</div>
