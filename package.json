@@ -1,0 +1,1 @@
+{"name":"chimpions-attribute-arena","version":"0.1.0","private":true,"type":"module","scripts":{"dev":"node server/index.js","start":"node server/index.js","test":"node --test","import":"node scripts/import-chimpions.js"},"dependencies":{"ws":"^8.18.0"},"engines":{"node":">=20"}}
