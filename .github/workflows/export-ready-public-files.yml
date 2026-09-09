@@ -1,0 +1,21 @@
+name: Export Ready Public Files
+on:
+  push:
+    branches:
+      - work/export-ready-public-files
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build requested ZIP
+        run: |
+          mkdir -p export
+          cp public/app.js export/app.js
+          cp public/style.css export/style.css
+          cd export
+          zip -9 ../chimpions-arena-app-style.zip app.js style.css
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chimpions-arena-app-style
+          path: chimpions-arena-app-style.zip
