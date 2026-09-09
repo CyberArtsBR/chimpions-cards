@@ -10,11 +10,11 @@ import {
 } from '../public/engine.js';
 
 const root=fileURLToPath(new URL('../public/',import.meta.url));
-const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.svg':'image/svg+xml','.webp':'image/webp','.png':'image/png','.mp3':'audio/mpeg'};
+const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.svg':'image/svg+xml','.webp':'image/webp','.png':'image/png','.mp3':'audio/mpeg','.mp4':'video/mp4'};
 const server=http.createServer(async(req,res)=>{
   try{
     const url=new URL(req.url,'http://local');
-    if(url.pathname==='/healthz'){res.writeHead(200,{'content-type':'application/json; charset=utf-8','cache-control':'no-store'});return res.end(JSON.stringify({ok:true,service:'chimpions-attribute-arena'}))}
+    if(url.pathname==='/healthz'){res.writeHead(200,{'content-type':'application/json; charset=utf-8','cache-control':'no-store'});return res.end(JSON.stringify({ok:true,service:'chimpions-arena'}))}
     let p=normalize(url.pathname).replace(/^(\.\.(\/|\\|$))+/, '');
     if(p==='/')p='/index.html';const f=join(root,p);if(!(await stat(f)).isFile())throw new Error('not-file');
     res.writeHead(200,{'content-type':mime[extname(f)]||'application/octet-stream','cache-control':extname(f)==='.html'?'no-cache':'public,max-age=3600'});res.end(await readFile(f));
