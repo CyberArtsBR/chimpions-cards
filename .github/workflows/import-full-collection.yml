@@ -1,0 +1,28 @@
+name: Import Full Chimpions Collection
+
+on:
+  push:
+    branches:
+      - work/import-full-collection
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Import official collection
+        run: npm run import
+      - name: Strictly validate collection
+        run: npm run validate:collection:strict
+      - name: Generate balance report
+        run: npm run balance > balance-report.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chimpions-full-collection
+          path: |
+            public/data/chimpions.json
+            balance-report.json
