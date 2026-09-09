@@ -24,7 +24,7 @@ const server=http.createServer(async(req,res)=>{
 const manifest=JSON.parse(await readFile(join(root,'data/chimpions.json'),'utf8'));
 const cards=decorateCards(manifest.cards||[]);
 const wss=new WebSocketServer({server,path:'/room'}),rooms=new Map();
-const ALPHABET='ABCDEFGHJKLMNPQRSTUVWXYZ',TURN_MS=20_000,REVEAL_MS=3_000,WAITING_TTL=10*60_000,FINISHED_TTL=90_000;
+const ALPHABET='ABCDEFGHJKLMNPQRSTUVWXYZ',TURN_MS=20_000,REVEAL_MS=2_200,WAITING_TTL=10*60_000,FINISHED_TTL=90_000;
 
 function roomCode(){return Array.from({length:4},()=>ALPHABET[randomInt(ALPHABET.length)]).join('')}
 function send(ws,type,data={}){if(ws?.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type,...data}))}
@@ -37,7 +37,7 @@ function publicState(room,seat){
   const g=room.game;
   return {
     card:g.decks[seat][0],counts:[g.decks[seat].length,g.decks[1-seat].length],round:g.round,maxRounds:g.maxRounds,
-    pot:g.pot.length*2,turn:g.active===seat,mode:g.mode,legal:legalAttributes(g),swaps:[g.swaps[seat],g.swaps[1-seat]],deadline:room.deadline
+    pot:g.pot.length*2,turn:g.active===seat,mode:g.mode,lastAttribute:g.lastAttribute,legal:legalAttributes(g),swaps:[g.swaps[seat],g.swaps[1-seat]],deadline:room.deadline
   }
 }
 function broadcastState(room){peers(room).forEach((p,i)=>send(p,'state',publicState(room,i)))}
