@@ -13,7 +13,7 @@ const root=fileURLToPath(new URL('../public/',import.meta.url));
 const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.svg':'image/svg+xml','.webp':'image/webp','.png':'image/png'};
 const server=http.createServer(async(req,res)=>{
   try{
-    const url=new URL(req.url,'http://local');let p=normalize(url.pathname).replace(/^(\.\.(\/|\\|$))+/, '');
+    const url=new URL(req.url,'http://local');\n    if(url.pathname==='/healthz'){res.writeHead(200,{'content-type':'application/json; charset=utf-8','cache-control':'no-store'});return res.end(JSON.stringify({ok:true,service:'chimpions-attribute-arena'}))}\n    let p=normalize(url.pathname).replace(/^(\.\.(\/|\\|$))+/, '');
     if(p==='/')p='/index.html';const f=join(root,p);if(!(await stat(f)).isFile())throw new Error('not-file');
     res.writeHead(200,{'content-type':mime[extname(f)]||'application/octet-stream','cache-control':extname(f)==='.html'?'no-cache':'public,max-age=3600'});res.end(await readFile(f));
   }catch{res.writeHead(404);res.end('Not found')}
