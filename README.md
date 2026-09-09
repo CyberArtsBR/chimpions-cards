@@ -44,6 +44,12 @@ npm run validate:collection:strict
 
 The importer refuses to silently accept an incomplete collection unless `ALLOW_PARTIAL_IMPORT=1` is explicitly set.
 
+## Deploy
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FCyberArtsBR%2Fchimpions-cards)
+
+The repository includes a Render Blueprint (`render.yaml`) for the Node web service and WebSocket multiplayer server. The dedicated health endpoint is `/healthz`.
+
 ## Run
 
 ```bash
