@@ -36,8 +36,36 @@ export function cardStats(card){
   return Object.fromEntries(ATTRIBUTES.map((a,i)=>[a,vals[i]]));
 }
 
-export function decorateCard(card){return {...card,stats:card.stats||cardStats(card)}}
-export function decorateCards(cards=[]){return cards.map(decorateCard)}
+export function validateCardStats(stats){
+  if(!stats||typeof stats!=='object'||Array.isArray(stats))throw new Error('Card stats must be an object');
+  const keys=Object.keys(stats);
+  if(keys.length!==ATTRIBUTES.length||ATTRIBUTES.some(a=>!Object.hasOwn(stats,a)))throw new Error('Card stats must contain exactly six attributes');
+  for(const a of ATTRIBUTES){
+    const v=stats[a];
+    if(!Number.isFinite(v)||!Number.isInteger(v)||v<0||v>100)throw new Error('Invalid '+a+' stat');
+  }
+  return true;
+}
+export function decorateCard(card){
+  if(!card||typeof card!=='object')throw new Error('Invalid card');
+  const stats=card.stats??cardStats(card);
+  validateCardStats(stats);
+  return {...card,stats:{...stats}};
+}
+export function decorateCards(cards=[]){
+  if(!Array.isArray(cards))throw new Error('Cards must be an array');
+  return cards.map(decorateCard)
+}
+
+function validateMatchCards(cards){
+  const seen=new Set();
+  for(const [i,c] of cards.entries()){
+    const identity=c?.mint?'mint:'+c.mint:'id:'+c?.id;
+    if(identity.endsWith(':undefined')||identity.endsWith(':null')||identity.endsWith(':'))throw new Error('Card '+i+' has no competitive identity');
+    if(seen.has(identity))throw new Error('Duplicate competitive identity: '+identity);
+    seen.add(identity);
+  }
+}
 
 export function shuffled(input=[],rng=Math.random){
   const a=[...input];
@@ -51,12 +79,19 @@ export function legalAttributes(game){
 }
 
 export function createMatch(cards,{deckSize=6,maxRounds=24,mode=MODES.classic,starter=0,rng=Math.random}={}){
-  const pool=shuffled(decorateCards(cards),rng);
+  if(!Number.isInteger(deckSize)||deckSize<1)throw new Error('deckSize must be a positive integer');
+  if(!Number.isInteger(maxRounds)||maxRounds<1)throw new Error('maxRounds must be a positive integer');
+  if(starter!==0&&starter!==1)throw new Error('starter must be 0 or 1');
+  if(mode!==MODES.classic&&mode!==MODES.tactical)throw new Error('Invalid mode');
+  if(typeof rng!=='function')throw new Error('rng must be a function');
+  const decorated=decorateCards(cards);
+  validateMatchCards(decorated);
+  const pool=shuffled(decorated,rng);
   const n=Math.min(deckSize,Math.floor(pool.length/2));
   if(n<1)throw new Error('Not enough cards to start a match');
   return {
     decks:[pool.slice(0,n),pool.slice(n,n*2)],pot:[],round:1,maxRounds,
-    active:starter===1?1:0,mode:mode===MODES.tactical?MODES.tactical:MODES.classic,
+    active:starter,mode,
     phase:'choose',lastAttribute:null,result:null,history:[],finished:false,outcome:null,
     swaps:[mode===MODES.tactical?1:0,mode===MODES.tactical?1:0]
   };
@@ -127,7 +162,7 @@ export function finishMatch(game){
   const counts=game.decks.map(d=>d.length);
   const winner=counts[0]===counts[1]?null:(counts[0]>counts[1]?0:1);
   game.finished=true; game.phase='finished';
-  game.outcome={winner,counts,roundsPlayed:Math.max(0,game.round-1),history:[...game.history]};
+  game.outcome={winner,counts,roundsPlayed:game.history.length,history:[...game.history]};
   return game.outcome;
 }
 
@@ -160,8 +195,9 @@ export function validateCollection(manifest){
     if(!c.name)errors.push(`card ${i}: missing name`);
     if(!Number.isFinite(Number(c.id)))errors.push(`card ${i}: invalid id`);
     if(!/^https:\/\//.test(c.image||''))errors.push(`card ${i}: invalid image URL`);
-    if(c.mint){if(mintSet.has(c.mint))errors.push(`duplicate mint ${c.mint}`);mintSet.add(c.mint)}
-    if(idSet.has(String(c.id)))warnings.push(`duplicate id ${c.id}`);idSet.add(String(c.id));
+    if(c.mint){if(mintSet.has(c.mint))errors.push('duplicate mint '+c.mint);mintSet.add(c.mint)}
+    if(idSet.has(String(c.id)))errors.push('duplicate id '+c.id);idSet.add(String(c.id));
+    if(c.stats!==undefined){try{validateCardStats(c.stats)}catch(e){errors.push('card '+i+': '+e.message)}}
   });
   const expected=Number(manifest?.reportedTotal||manifest?.expectedTotal||0);
   if(expected&&cards.length!==expected)warnings.push(`manifest contains ${cards.length}/${expected} cards`);
