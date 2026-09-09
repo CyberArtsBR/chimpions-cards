@@ -8,7 +8,7 @@ let cards=[],manifest=null,game=null,screen='menu',epoch=0,socket=null,netState=
 const timers=new Set(),intervals=new Set();
 const REVEAL_HOLD_MS=3000,CPU_THINK_MS=900;
 const prefs={sfx:localStorage.getItem('chimpions:sfx')!=='off',music:localStorage.getItem('chimpions:music')!=='off'};
-let audioCtx=null,musicInterval=null,musicStep=0,musicMaster=null,noiseBuffer=null;
+let audioCtx=null,musicInterval=null,musicStep=0,musicMaster=null,noiseBuffer=null,audioUnlockArmed=false;
 
 const placeholder=`data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600"><rect width="600" height="600" fill="#111527"/><circle cx="300" cy="260" r="120" fill="#242b45"/><text x="300" y="300" text-anchor="middle" font-family="sans-serif" font-size="128" font-weight="800" fill="#c8ff42">C</text><text x="300" y="450" text-anchor="middle" font-family="sans-serif" font-size="28" fill="#aeb5cc">CHIMPION</text></svg>`)}`;
 
@@ -61,11 +61,19 @@ function toggleAudio(kind){
   renderAudioButtons()
 }
 function renderAudioButtons(){const s=$('#sfxToggle'),m=$('#musicToggle');if(s){s.textContent=prefs.sfx?'SFX ON':'SFX OFF';s.setAttribute('aria-pressed',String(prefs.sfx))}if(m){m.textContent=prefs.music?'MUSIC ON':'MUSIC OFF';m.setAttribute('aria-pressed',String(prefs.music))}}
+function armAudioUnlock(){
+  if(!prefs.music||audioCtx?.state==='running'||audioUnlockArmed)return;
+  audioUnlockArmed=true;
+  const unlock=()=>{
+    audioUnlockArmed=false;window.removeEventListener('pointerdown',unlock,true);window.removeEventListener('keydown',unlock,true);ensureAudio();
+  };
+  window.addEventListener('pointerdown',unlock,{once:true,capture:true});window.addEventListener('keydown',unlock,{once:true,capture:true})
+}
 
 function nav(){return `<header><button class="brand" data-go="menu"><b>CHIMPIONS</b><span>ATTRIBUTE ARENA</span></button><nav><button data-go="gallery">Collection</button><button data-go="help">How to play</button><button class="audio-toggle" id="musicToggle" aria-label="Toggle music"></button><button class="audio-toggle" id="sfxToggle" aria-label="Toggle sound effects"></button></nav></header>`}
 function bindNav(){
   document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));
-  const s=$('#sfxToggle'),m=$('#musicToggle');if(s)s.onclick=()=>toggleAudio('sfx');if(m)m.onclick=()=>toggleAudio('music');renderAudioButtons();bindImages();bindCardTilt();
+  const s=$('#sfxToggle'),m=$('#musicToggle');if(s)s.onclick=()=>toggleAudio('sfx');if(m)m.onclick=()=>toggleAudio('music');renderAudioButtons();bindImages();bindCardTilt();armAudioUnlock();
 }
 function bindImages(){document.querySelectorAll('img').forEach(img=>{img.addEventListener('error',()=>{if(img.src!==placeholder)img.src=placeholder},{once:true})})}
 function bindCardTilt(){
@@ -167,6 +175,12 @@ function animateDuelScores(){
   const tick=now=>{const p=Math.min(1,(now-start)/duration),ease=1-Math.pow(1-p,3);els.forEach(el=>el.textContent=Math.round(Number(el.dataset.target||0)*ease));if(p<1)requestAnimationFrame(tick)};
   requestAnimationFrame(tick)
 }
+function captureFx(result){
+  if(!result)return '';
+  if(result.winner===null)return '<div class="capture-fx standoff-fx"><i></i><i></i><i></i></div>';
+  const dir=result.winner===0?'to-player':'to-rival';
+  return `<div class="capture-fx ${dir}">${Array.from({length:14},(_,i)=>`<i style="--i:${i}"></i>`).join('')}</div>`
+}
 function renderBattle(){
   if(!game)return menu();if(game.finished)return finish();
   const reveal=game.phase==='reveal',result=game.result;
@@ -184,6 +198,7 @@ function renderBattle(){
       ${reveal?duelVersus(result,'CPU'):idleVersus(canChoose,game.pot.length*2)}
       <div class="opponent-slot">${card(o,{hidden:!reveal,interactive:false,selected:result?.attribute,slot:'opponent',outcome:oOutcome,reveal})}</div>
     </section>
+    ${reveal?captureFx(result):''}
     <aside class="battle-log"><h3>Battle telemetry</h3>${historyHtml()}</aside>
     <div id="announcer" class="sr-only" aria-live="assertive">${status}</div>
   </main>`;
@@ -218,12 +233,18 @@ function scheduleCpu(){
   },CPU_THINK_MS)
 }
 function finish(){
-  if(!game)return menu();const out=game.outcome||finishMatch(game),state=out.winner===0?'win':out.winner===1?'loss':'draw';
+  if(!game)return menu();const out=game.outcome||finishMatch(game),state=out.winner===0?'win':out.winner===1?'loss':'draw',margin=Math.abs(out.counts[0]-out.counts[1]);
   const title=state==='win'?'Arena conquered':state==='loss'?'Defeat':'Dead even';
-  const copy=state==='win'?'Your reads converted into captures.':state==='loss'?'Review the battle log and run it back.':'The final card count is tied.';
+  const copy=state==='win'?'Your reads converted into captures.':state==='loss'?'The CPU controlled the final card advantage.':'Neither side could break the final balance.';
   if(state==='win')sfx('final');else sfx(state==='loss'?'lose':'tie');
-  const particles=state==='win'?`<div class="particles" aria-hidden="true">${Array.from({length:22},(_,i)=>`<i style="--i:${i}"></i>`).join('')}</div>`:'';
-  app.innerHTML=nav()+`<main class="result ${state}">${particles}<div class="trophy">${state==='win'?'♛':state==='loss'?'◇':'='}</div><small>${game.mode.toUpperCase()} • ${out.roundsPlayed} ROUNDS</small><h1>${title}</h1><p>${copy}</p><div class="score"><span>YOU <b>${out.counts[0]}</b></span><i>—</i><span><b>${out.counts[1]}</b> CPU</span></div><div class="result-actions"><button class="primary" id="again">Rematch</button><button data-go="menu">Main menu</button></div></main>`;
+  const particles=state==='win'?`<div class="particles" aria-hidden="true">${Array.from({length:26},(_,i)=>`<i style="--i:${i}"></i>`).join('')}</div>`:'';
+  app.innerHTML=nav()+`<main class="result match-result ${state}">${particles}<div class="result-aura"></div>
+    <div class="result-kicker">MATCH COMPLETE • ${game.mode.toUpperCase()}</div>
+    <div class="trophy">${state==='win'?'♛':state==='loss'?'◇':'='}</div><h1>${title}</h1><p>${copy}</p>
+    <div class="final-scoreboard"><div><small>YOU</small><b>${out.counts[0]}</b></div><i>FINAL</i><div><small>CPU</small><b>${out.counts[1]}</b></div></div>
+    <div class="result-metrics"><span><b>${out.roundsPlayed}</b> rounds</span><span><b>${margin}</b> card margin</span><span><b>${out.history.filter(h=>h.winner===null).length}</b> standoffs</span></div>
+    <div class="result-actions"><button class="primary" id="again">Rematch</button><button data-go="menu">Main menu</button></div>
+  </main>`;
   $('#again').onclick=()=>start(game.mode);bindNav()
 }
 
@@ -234,7 +255,10 @@ function gallery(){
     const q=$('#search').value.toLowerCase(),tribe=$('#tribe').value,sort=$('#sort').value;
     let list=cards.filter(c=>(c.name+' '+(c.tribe||'')).toLowerCase().includes(q)&&(!tribe||c.tribe===tribe));
     list=[...list].sort((a,b)=>sort==='name'?a.name.localeCompare(b.name):ATTRIBUTES.includes(sort)?b.stats[sort]-a.stats[sort]:Number(a.id)-Number(b.id));
-    $('#grid').innerHTML=list.length?list.map(c=>`<button class="tile" data-id="${c.id}"><img loading="lazy" src="${c.image}" alt="${escapeHtml(c.name)}"><b>${escapeHtml(c.name)}</b><span>${escapeHtml(c.tribe||'Unaligned')}</span><em>${Math.max(...Object.values(c.stats))} top stat</em></button>`).join(''):`<div class="empty-search">No Chimpions match these filters.</div>`;
+    $('#grid').innerHTML=list.length?list.map(c=>{const edge=topAttribute(c);return `<button class="tile affinity-${attrSlug(edge)}" data-id="${c.id}">
+      <div class="tile-art"><span class="tile-foil"></span><img loading="lazy" src="${c.image}" alt="${escapeHtml(c.name)}"><em>${ATTRIBUTE_UI[edge].icon} ${edge} ${c.stats[edge]}</em></div>
+      <div class="tile-head"><small>#${String(c.id).padStart(3,'0')}</small><b>${escapeHtml(c.name)}</b></div><span>${escapeHtml(c.tribe||'Unaligned')}</span>
+    </button>`}).join(''):`<div class="empty-search">No Chimpions match these filters.</div>`;
     bindImages();document.querySelectorAll('.tile').forEach(t=>t.onclick=()=>showDetail(t.dataset.id))
   };
   $('#search').oninput=draw;$('#tribe').onchange=draw;$('#sort').onchange=draw;$('#detail .close').onclick=()=>$('#detail').close();draw();bindNav()
@@ -287,12 +311,16 @@ function netReveal(m){
     <section class="table"><div class="player-slot">${card(m.cards[0],{selected:m.attribute,slot:'player',outcome:winner===null?'tie':winner===0?'winner':'loser'})}</div>
     ${duelVersus(result,'RIVAL')}
     <div class="opponent-slot">${card(m.cards[1],{selected:m.attribute,slot:'opponent',outcome:winner===null?'tie':winner===1?'winner':'loser',reveal:true})}</div></section>
+    ${captureFx(result)}
     <div id="announcer" class="sr-only" aria-live="assertive">${status}</div></main>`;bindNav();animateDuelScores()
 }
 function netGameOver(m){
-  const state=m.winner==='you'?'win':m.winner==='draw'?'draw':'loss',title=state==='win'?'Victory':state==='draw'?'Draw':'Defeat';
+  const state=m.winner==='you'?'win':m.winner==='draw'?'draw':'loss',title=state==='win'?'Victory':state==='draw'?'Draw':'Defeat',margin=Math.abs(m.counts[0]-m.counts[1]);
   if(state==='win')sfx('final');else sfx(state==='draw'?'tie':'lose');
-  app.innerHTML=nav()+`<main class="result ${state}"><div class="trophy">${state==='win'?'♛':state==='draw'?'=':'◇'}</div><h1>${title}</h1><p>Final count: ${m.counts[0]} to ${m.counts[1]}.</p><div class="result-actions"><button class="primary" id="onlineAgain">New room</button><button data-go="menu">Main menu</button></div></main>`;$('#onlineAgain').onclick=()=>online(m.mode||MODES.tactical);bindNav()
+  app.innerHTML=nav()+`<main class="result match-result ${state}"><div class="result-aura"></div><div class="result-kicker">PRIVATE 1V1 • MATCH COMPLETE</div>
+    <div class="trophy">${state==='win'?'♛':state==='draw'?'=':'◇'}</div><h1>${title}</h1><p>The room resolved with a final card margin of ${margin}.</p>
+    <div class="final-scoreboard"><div><small>YOU</small><b>${m.counts[0]}</b></div><i>FINAL</i><div><small>RIVAL</small><b>${m.counts[1]}</b></div></div>
+    <div class="result-actions"><button class="primary" id="onlineAgain">New room</button><button data-go="menu">Main menu</button></div></main>`;$('#onlineAgain').onclick=()=>online(m.mode||MODES.tactical);bindNav()
 }
 
 fetch('/data/chimpions.json').then(r=>{if(!r.ok)throw new Error(`HTTP ${r.status}`);return r.json()}).then(d=>{manifest=d;cards=decorateCards(d.cards||[]);menu()}).catch(()=>app.innerHTML='<main class="result loss"><h1>Collection unavailable</h1><p>Refresh to try again.</p></main>');
