@@ -1,5 +1,6 @@
 export const ATTRIBUTES=['Power','Agility','Intellect','Tech','Mystique','Charisma'];
 export const MODES={classic:'classic',tactical:'tactical'};
+export const CPU_DIFFICULTIES={easy:'easy',standard:'standard',expert:'expert'};
 
 export function hashString(s=''){
   let h=2166136261;
@@ -178,14 +179,27 @@ export function attributeWinRate(card,attribute,population=[]){
   return total?(wins+ties*.5)/total:.5;
 }
 
-export function chooseCpuAttribute(card,population=[],banned=null){
+export function chooseCpuAttribute(card,population=[],banned=null,{difficulty=CPU_DIFFICULTIES.expert,rng=Math.random}={}){
   const legal=ATTRIBUTES.filter(a=>a!==banned);
-  return legal.reduce((best,a)=>{
-    const score=attributeWinRate(card,a,population);
-    const bestScore=attributeWinRate(card,best,population);
-    if(score!==bestScore)return score>bestScore?a:best;
-    return card.stats[a]>card.stats[best]?a:best;
-  },legal[0]);
+  if(!Object.values(CPU_DIFFICULTIES).includes(difficulty))throw new Error('Invalid CPU difficulty');
+  if(typeof rng!=='function')throw new Error('rng must be a function');
+  const scored=legal.map(attribute=>({attribute,score:attributeWinRate(card,attribute,population),value:card.stats[attribute]}));
+  if(difficulty===CPU_DIFFICULTIES.easy){
+    const weights=scored.map(x=>0.7+x.score*0.6),total=weights.reduce((a,b)=>a+b,0);
+    let roll=Math.max(0,Math.min(.999999999,Number(rng()))) * total;
+    for(let i=0;i<scored.length;i++){roll-=weights[i];if(roll<=0)return scored[i].attribute}
+    return scored.at(-1).attribute
+  }
+  if(difficulty===CPU_DIFFICULTIES.standard){
+    return scored.reduce((best,x)=>{
+      const noisy=x.score+(Math.max(0,Math.min(1,Number(rng())))-.5)*.22;
+      return !best||noisy>best.noisy||(noisy===best.noisy&&x.value>best.value)?{...x,noisy}:best
+    },null).attribute
+  }
+  return scored.reduce((best,x)=>{
+    if(!best||x.score>best.score||(x.score===best.score&&x.value>best.value))return x;
+    return best
+  },null).attribute;
 }
 
 export function validateCollection(manifest){
