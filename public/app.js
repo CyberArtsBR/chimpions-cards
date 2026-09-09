@@ -14,7 +14,7 @@ const prefs={
   difficulty:localStorage.getItem('chimpions:difficulty')||CPU_DIFFICULTIES.standard,
   motion:localStorage.getItem('chimpions:motion')||'auto'
 };
-let audioCtx=null,battleTrack=null,battleMusicUnlockArmed=false,roundAdvanceTimer=null,musicDuckTimer=null,cpuDifficulty=prefs.difficulty;
+let audioCtx=null,battleTrack=null,battleMusicUnlockArmed=false,roundAdvanceTimer=null,musicDuckTimer=null,cpuDifficulty=prefs.difficulty,battleIntroPending=false;
 
 const placeholder=`data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600"><rect width="600" height="600" fill="#111527"/><circle cx="300" cy="260" r="120" fill="#242b45"/><text x="300" y="300" text-anchor="middle" font-family="sans-serif" font-size="128" font-weight="800" fill="#c8ff42">C</text><text x="300" y="450" text-anchor="middle" font-family="sans-serif" font-size="28" fill="#aeb5cc">CHIMPION</text></svg>`)}`;
 
@@ -110,23 +110,37 @@ function renderAudioButtons(){
   if(r){r.textContent='MOTION '+prefs.motion.toUpperCase();r.setAttribute('aria-pressed',String(motionReduced()))}
 }
 
+function socialIcon(kind){
+  const icons={
+    site:`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20a10 10 0 0 0 0-20Zm6.9 9h-3.05a15.2 15.2 0 0 0-1.28-5.04A8.03 8.03 0 0 1 18.9 11ZM12 4.1c.74.9 1.83 3.12 2.12 6.9H9.88C10.17 7.22 11.26 5 12 4.1ZM9.43 5.96A15.2 15.2 0 0 0 8.15 11H5.1a8.03 8.03 0 0 1 4.33-5.04ZM5.1 13h3.05a15.2 15.2 0 0 0 1.28 5.04A8.03 8.03 0 0 1 5.1 13ZM12 19.9c-.74-.9-1.83-3.12-2.12-6.9h4.24c-.29 3.78-1.38 6-2.12 6.9Zm2.57-1.86A15.2 15.2 0 0 0 15.85 13h3.05a8.03 8.03 0 0 1-4.33 5.04Z"/></svg>`,
+    x:`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.9 3H21l-4.58 5.23L21.8 21h-4.22l-3.3-4.84L10.04 21H7.9l4.89-5.6L3 3h4.33l2.99 4.4L14.1 3Zm-.74 16h1.17L6.7 4.9H5.44Z"/></svg>`,
+    discord:`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.54 5.34A16.3 16.3 0 0 0 15.5 4l-.2.41a11.4 11.4 0 0 1 3.4 1.73a11.68 11.68 0 0 0-7.4 0a11.4 11.4 0 0 1 3.4-1.73L14.5 4a16.3 16.3 0 0 0-4.04 1.34C7.9 9.18 7.2 12.9 7.42 16.56A16.45 16.45 0 0 0 12.2 19l.76-1.26c-.8-.28-1.57-.68-2.28-1.18l.54-.41c1.39.65 2.95.65 4.34 0l.54.41c-.71.5-1.48.9-2.28 1.18l.76 1.26a16.45 16.45 0 0 0 4.78-2.44c.3-4.17-.52-7.87-2.82-11.22ZM10.2 14.33c-.85 0-1.54-.8-1.54-1.78c0-.98.68-1.78 1.54-1.78c.86 0 1.55.8 1.54 1.78c0 .98-.68 1.78-1.54 1.78Zm3.6 0c-.85 0-1.54-.8-1.54-1.78c0-.98.68-1.78 1.54-1.78c.86 0 1.55.8 1.54 1.78c0 .98-.68 1.78-1.54 1.78Z"/></svg>`
+  };
+  return icons[kind]||''
+}
 function officialLinks(compact=false){
   return `<div class="${compact?'nav-socials':'official-links'}">
-    <a href="${OFFICIAL_LINKS.site}" target="_blank" rel="noreferrer" aria-label="Official Chimpions website">${compact?'WEB':'Official Chimpions'}<span>↗</span></a>
-    <a href="${OFFICIAL_LINKS.x}" target="_blank" rel="noreferrer" aria-label="Chimpions on X">${compact?'X':'X / TheChimpions'}<span>↗</span></a>
-    <a href="${OFFICIAL_LINKS.discord}" target="_blank" rel="noreferrer" aria-label="Chimpions Discord">${compact?'DISCORD':'Discord'}<span>↗</span></a>
+    <a class="official-site" href="${OFFICIAL_LINKS.site}" target="_blank" rel="noreferrer" aria-label="Official Chimpions website">${socialIcon('site')}<strong>${compact?'Official Chimpions Website':'Official Chimpions Website'}</strong></a>
+    <a class="official-x" href="${OFFICIAL_LINKS.x}" target="_blank" rel="noreferrer" aria-label="Chimpions on X">${socialIcon('x')}<strong>${compact?'X / TheChimpions':'X / TheChimpions'}</strong></a>
+    <a class="official-discord" href="${OFFICIAL_LINKS.discord}" target="_blank" rel="noreferrer" aria-label="Chimpions Discord">${socialIcon('discord')}<strong>Discord</strong></a>
   </div>`
 }
 function backgroundVideo(kind='battle'){
   return `<div class="arena-video arena-video-${kind}" aria-hidden="true">
-    <video autoplay muted loop playsinline preload="metadata">
+    <video autoplay muted loop playsinline preload="auto">
       <source src="${ARENA_VIDEO_URL}" type="video/mp4">
     </video>
     <div class="arena-video-color"></div>
     <div class="arena-video-vignette"></div>
   </div>`
 }
-function nav(){const pace=screen==='battle'?'<button class="pace-toggle" id="paceToggle" aria-label="Toggle reveal pace"></button>':'';return `<header><button class="brand" data-go="menu" aria-label="Chimpions Arena home"><b>CHIMPIONS</b><span>ARENA</span></button>${officialLinks(true)}<nav><button data-go="gallery">Collection</button><button data-go="help">How to play</button>${pace}<button class="motion-toggle" id="motionToggle" aria-label="Cycle motion preference"></button><button class="audio-toggle" id="musicToggle" aria-label="Toggle music"></button><button class="audio-toggle" id="sfxToggle" aria-label="Toggle sound effects"></button></nav></header>`}
+function nav(){
+  const pace=screen==='battle'?'<button class="pace-toggle" id="paceToggle" aria-label="Toggle reveal pace"></button>':'';
+  if(screen==='battle'||screen==='online'){
+    return `<div class="battle-topbar"><button class="brand compact" data-go="menu" aria-label="Chimpions Arena home"><b>CHIMPIONS</b><span>ARENA</span></button><div class="battle-topbar-actions">${pace}<button class="motion-toggle" id="motionToggle" aria-label="Cycle motion preference"></button><button class="audio-toggle" id="musicToggle" aria-label="Toggle music"></button><button class="audio-toggle" id="sfxToggle" aria-label="Toggle sound effects"></button><button class="battle-menu-btn" data-go="menu">Main menu</button></div></div>`
+  }
+  return `<header><button class="brand" data-go="menu" aria-label="Chimpions Arena home"><b>CHIMPIONS</b><span>ARENA</span></button>${officialLinks(true)}<nav><button data-go="gallery">Collection</button><button data-go="help">How to play</button><button class="motion-toggle" id="motionToggle" aria-label="Cycle motion preference"></button><button class="audio-toggle" id="musicToggle" aria-label="Toggle music"></button><button class="audio-toggle" id="sfxToggle" aria-label="Toggle sound effects"></button></nav></header>`
+}
 function bindNav(){
   document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));
   const s=$('#sfxToggle'),m=$('#musicToggle'),p=$('#paceToggle'),r=$('#motionToggle');if(s)s.onclick=()=>toggleAudio('sfx');if(m)m.onclick=()=>toggleAudio('music');if(p)p.onclick=togglePace;if(r)r.onclick=toggleMotion;applyMotionPreference();renderAudioButtons();bindImages();bindCardTilt();
@@ -174,20 +188,19 @@ function heroCards(){
 function menu(){
   screen='menu';
   const v=manifest?validateCollection(manifest):null;
-  const collectionNote=v?`<div class="collection-status"><span class="live-dot"></span><b>${v.count} playable Chimpions</b><small>Official API collection snapshot</small></div>`:'';
+  const collectionNote=v?`<div class="collection-status"><span class="live-dot"></span><b>${v.count} playable Chimpions</b><small>Official snapshot • CPU + private 1v1</small></div>`:'';
   app.innerHTML=nav()+`<main class="hero arena-home">${backgroundVideo('home')}<div class="hero-copy">
     <div class="hero-logo-lockup"><div class="hero-logo-title">The Chimpions</div><div class="hero-logo-arena">Arena</div><div class="hero-logo-subtitle">Animated card battles from the Chimpions universe</div></div>
-    <div class="eyebrow">${cards.length} PLAYABLE CHIMPIONS • CPU + PRIVATE 1V1</div>
+    <div class="eyebrow">${cards.length} PLAYABLE CHIMPIONS • STRATEGIC CARD DUELS</div>
     <h1>Read the card.<br><em>Own the arena.</em></h1>
-    <p>Choose the strongest edge, reveal the rival, build the standoff pot, and turn every matchup into a tactical duel.</p>
-    <fieldset class="mode-picker"><legend>Ruleset</legend>
-      <label><input type="radio" name="mode" value="classic"><span><b>Classic</b><small>Traditional battle flow. The winner keeps initiative and chooses the next attribute.</small></span></label>
-      <label><input type="radio" name="mode" value="tactical" checked><span><b>Tactical ★</b><small>Recommended competitive mode. The chooser alternates every round, the last-used attribute is locked for the next duel, and each side gets one Reserve Swap.</small></span></label>
+    <p>Pick the best edge, reveal the rival, and control the standoff pot in a clean tactical showdown.</p>
+    <fieldset class="mode-picker compact-home"><legend>Ruleset</legend>
+      <label><input type="radio" name="mode" value="classic"><span><b>Classic</b><small>Winner keeps initiative and chooses next.</small></span></label>
+      <label><input type="radio" name="mode" value="tactical" checked><span><b>Tactical ★</b><small>Alternating chooser • last-used stat locked • 1 Reserve Swap each.</small></span></label>
     </fieldset>
-    <label class="difficulty-picker"><span>CPU difficulty</span><select id="cpuDifficulty"><option value="easy">Easy</option><option value="standard">Standard</option><option value="expert">Expert</option></select><small>Easy makes more imperfect reads. Standard is balanced. Expert chooses the strongest legal edge — never using hidden information.</small></label>
-    <div class="actions"><button class="primary" id="quick">Enter vs CPU</button><button id="onlineBtn">Private 1v1</button></div>
-    <div class="features"><span>Fast / Normal reveal pace</span><span>Keyboard 1–6 + S</span><span>Battle music + audio ducking</span></div>
-    ${officialLinks(false)}${collectionNote}
+    <div class="home-controls-row"><label class="difficulty-picker"><span>CPU difficulty</span><select id="cpuDifficulty"><option value="easy">Easy</option><option value="standard">Standard</option><option value="expert">Expert</option></select><small>Fair AI only changes decision quality — never hidden information.</small></label><div class="actions"><button class="primary" id="quick">Play vs CPU</button><button id="onlineBtn">Private 1v1</button></div></div>
+    <div class="features compact-features"><span>Fast / Normal pace</span><span>Keyboard 1–6 + S</span><span>Music + ducking</span></div>
+    ${collectionNote}
   </div><div class="hero-card-stack" aria-hidden="true">${heroCards()}<div class="hero-glow"></div></div></main>`;
   const diff=$('#cpuDifficulty');if(diff){diff.value=prefs.difficulty;diff.onchange=()=>{prefs.difficulty=diff.value;localStorage.setItem('chimpions:difficulty',prefs.difficulty)}}
   $('#quick').onclick=()=>{ensureAudio();sfx('ui');start(currentMode(),currentDifficulty())};$('#onlineBtn').onclick=()=>{ensureAudio();sfx('ui');cleanup();online(currentMode())};bindNav()
@@ -198,7 +211,7 @@ function start(mode=MODES.tactical,difficulty=prefs.difficulty){
   prefs.difficulty=cpuDifficulty;localStorage.setItem('chimpions:difficulty',cpuDifficulty);
   const starter=Math.random()<.5?0:1;
   game=createMatch(cards,{deckSize:6,maxRounds:24,mode,starter});
-  renderBattle();startBattleMusic({restart:true});sfx('ui');if(game.active===1)scheduleCpu();
+  battleIntroPending=true;renderBattle();startBattleMusic({restart:true});sfx('ui');if(game.active===1)scheduleCpu();
 }
 function statMarkup(c,a,interactive,selected,disabled){
   const tag=interactive?'button':'div',reason=disabled?'Locked in Tactical mode because this attribute was used last round.':'',attrs=interactive?`data-stat="${a}" ${disabled?'disabled':''} ${reason?`title="${reason}" aria-label="${a} ${c.stats[a]}. ${reason}"`:''}`:'',meta=ATTRIBUTE_UI[a]||{icon:'•',short:a};
@@ -211,6 +224,7 @@ function card(c,{hidden=false,interactive=false,selected=null,slot='player',disa
   if(!c)return '';
   const affinity=topAttribute(c),peak=c.stats[affinity],outcomeClass=outcome?` round-${outcome}`:'';
   return `<article class="card premium-card ${slot} affinity-${attrSlug(affinity)}${outcomeClass} ${reveal?'just-revealed':''}" data-card-tilt>
+    <div class="tcg-shell" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
     <div class="card-foil"></div><div class="card-glint"></div><div class="card-inner">
       <div class="art"><img src="${c.image}" alt="${escapeHtml(c.name)}" loading="eager"><span class="tribe-badge">${escapeHtml(c.tribe||'Unaligned')}</span><em class="edge-badge">${attrIcon(affinity)} ${affinity} ${peak}</em></div>
       <div class="cardhead"><small>#${String(c.id).padStart(3,'0')}</small><h2>${escapeHtml(c.name)}</h2><i>${ATTRIBUTE_UI[affinity].short}</i></div>
@@ -281,11 +295,20 @@ function idleVersus(canChoose,pot=0){
 function duelVersus(result,rightLabel='CPU'){
   const state=result.winner===null?'tie':result.winner===0?'you-win':'rival-win',winner=result.winner===null?null:result.cards[result.winner],verdict=result.winner===null?'STANDOFF':result.winner===0?'YOU WIN THE DUEL':`${rightLabel} WINS THE DUEL`;
   return `<div class="versus reveal-versus ${state}">
+    <div class="duel-energy" aria-hidden="true"><i></i><i></i><i></i></div>
     <div class="duel-attribute"><i>${attrIcon(result.attribute)}</i><span>${result.attribute} DUEL</span></div>
-    <div class="duel-scoreline"><div><small>YOU</small><b class="score-value" data-target="${result.values[0]}">0</b></div><i>VS</i><div><small>${rightLabel}</small><b class="score-value" data-target="${result.values[1]}">0</b></div></div>
+    <div class="duel-scoreline">
+      <div class="score-plate score-player"><small>YOU</small><b class="score-value" data-target="${result.values[0]}">0</b></div>
+      <i class="duel-vs">VS</i>
+      <div class="score-plate score-rival"><small>${rightLabel}</small><b class="score-value" data-target="${result.values[1]}">0</b></div>
+    </div>
     <div class="duel-verdict">${verdict}</div>
     <div class="duel-winner-name">${winner?escapeHtml(winner.name):'THE POT GROWS'}</div>
+    <div class="winner-stamp ${result.winner===null?'stamp-tie':result.winner===0?'stamp-player':'stamp-rival'}">${result.winner===null?'STANDOFF':'WINNER'}</div>
   </div>`
+}
+function battleIntroFx(rightLabel='CPU'){
+  return `<div class="battle-intro-fx" aria-hidden="true"><div class="intro-scanline"></div><div class="intro-mark"><small>THE CHIMPIONS ARENA</small><b>DUEL INITIALIZED</b><span>YOU <i>VS</i> ${rightLabel}</span></div></div>`
 }
 function animateDuelScores(){
   const els=[...document.querySelectorAll('.score-value')];if(!els.length)return;
@@ -307,12 +330,14 @@ function renderBattle(){
   const status=outcomeText(result),roundClass=reveal?(result.winner===null?'is-tie':result.winner===0?'is-win':'is-loss'):'',phaseClass=reveal?'reveal-phase':'choose-phase';
   const pOutcome=reveal?(result.winner===null?'tie':result.winner===0?'winner':'loser'):null,oOutcome=reveal?(result.winner===null?'tie':result.winner===1?'winner':'loser'):null;
   const banner=reveal?`${result.attribute.toUpperCase()} LOCKED • ROUND RESOLVED`:canChoose?'YOUR TURN • CHOOSE AN ATTRIBUTE':'CPU IS SCANNING THE MATCHUP';
-  app.innerHTML=nav()+`<main class="arena ${roundClass} ${phaseClass}">
+  const intro=battleIntroPending&&!reveal;
+  app.innerHTML=nav()+`<main class="arena ${roundClass} ${phaseClass} ${intro?'battle-intro':''}">
     ${backgroundVideo('battle')}
+    ${intro?battleIntroFx('CPU'):''}
     <div class="arena-atmosphere"><i></i><i></i><i></i></div>
     ${battleHud(game.decks[0].length,game.decks[1].length,'CPU',game.round,game.maxRounds,game.mode+' · '+cpuDifficulty+' CPU',game.pot.length*2)}
     <div class="turn-banner ${canChoose?'your-turn':''} ${reveal?'result-banner':''}">${banner}</div>
-    ${game.mode===MODES.tactical?tacticalStatus(game,['YOU','CPU']):''}
+    ${game.mode===MODES.tactical&&!reveal?tacticalStatus(game,['YOU','CPU']):''}
     <section class="table">
       <div class="player-slot">${card(p,{interactive:canChoose,selected:result?.attribute,slot:'player',disabledAttrs:disabled,outcome:pOutcome})}${game.mode===MODES.tactical&&!reveal?`<button class="swap" id="swap" ${!canChoose||!game.swaps[0]||game.decks[0].length<2?'disabled':''}>Reserve swap <b>${game.swaps[0]}</b></button>`:''}</div>
       ${reveal?duelVersus(result,'CPU'):idleVersus(canChoose,game.pot.length*2)}
@@ -320,10 +345,9 @@ function renderBattle(){
     </section>
     ${reveal?captureFx(result):''}
     ${reveal?'<div class="round-actions"><button class="primary continue-round" id="continueRound">Next round</button><small>Auto-continues in '+(revealHoldMs()/1000).toFixed(1)+'s · '+(prefs.fast?'Fast':'Normal')+' pace</small></div>':''}
-    <aside class="battle-log"><h3>Battle telemetry</h3>${historyHtml()}</aside>
     <div id="announcer" class="sr-only" aria-live="polite">${status}</div>
   </main>`;
-  bindNav();if(reveal)animateDuelScores();
+  bindNav();if(intro)battleIntroPending=false;if(reveal)animateDuelScores();
   if(canChoose)document.querySelectorAll('[data-stat]').forEach(b=>b.onclick=()=>choose(b.dataset.stat));
   const sw=$('#swap');if(sw)bindSwapPreview(sw,doSwap);
   const next=$('#continueRound');if(next)next.onclick=continueRound;bindBattleKeys({canChoose,reveal,online:false});
@@ -405,7 +429,7 @@ function sendWs(payload){if(!socket||socket.readyState!==WebSocket.OPEN)return s
 function handleNet(m){
   if(m.type==='room')return setStatus(`Room ${m.code} — waiting for your friend…`);
   if(m.type==='ready')return setStatus(`Room ${m.code} ready. ${m.mode.toUpperCase()} rules.`);
-  if(m.type==='state'){netState=m;return netBattle(m)}
+  if(m.type==='state'){if(!netState&&m.round===1)battleIntroPending=true;netState=m;return netBattle(m)}
   if(m.type==='reveal')return netReveal(m);
   if(m.type==='gameover')return netGameOver(m);
   if(m.type==='left'){stopBattleMusic(true);netState=null;return setStatus('Opponent disconnected. This room is closed; create a new room for a rematch.')}
@@ -415,13 +439,14 @@ function deadlineMarkup(deadline){return deadline?`<span class="deadline">TURN <
 function startDeadline(deadline){if(!deadline)return;const draw=()=>{const el=$('#turnTimer');if(el)el.textContent=Math.max(0,Math.ceil((deadline-Date.now())/1000))};draw();every(draw,250)}
 function netBattle(m){
   screen='online';startBattleMusic();for(const id of intervals)clearInterval(id);intervals.clear();const legal=m.legal||ATTRIBUTES,disabled=ATTRIBUTES.filter(a=>!legal.includes(a));
-  app.innerHTML=nav()+`<main class="arena choose-phase">${backgroundVideo('battle')}<div class="arena-atmosphere"><i></i><i></i><i></i></div>
+  const intro=battleIntroPending&&m.round===1;
+  app.innerHTML=nav()+`<main class="arena choose-phase ${intro?'battle-intro':''}">${backgroundVideo('battle')}${intro?battleIntroFx('RIVAL'):''}<div class="arena-atmosphere"><i></i><i></i><i></i></div>
     ${battleHud(m.counts[0],m.counts[1],'RIVAL',m.round,m.maxRounds,m.mode,m.pot)}
     <div class="turn-banner ${m.turn?'your-turn':''}">${m.turn?'YOUR TURN • CHOOSE AN ATTRIBUTE':'RIVAL IS CHOOSING'} ${deadlineMarkup(m.deadline)}</div>
     ${m.mode===MODES.tactical?tacticalStatus({lastAttribute:m.lastAttribute,active:m.turn?0:1,swaps:m.swaps},['YOU','RIVAL']):''}
     <section class="table"><div class="player-slot">${card(m.card,{interactive:m.turn,slot:'player',disabledAttrs:disabled})}${m.mode===MODES.tactical?`<button class="swap" id="netSwap" ${!m.turn||!m.swaps?.[0]?'disabled':''}>Reserve swap <b>${m.swaps?.[0]||0}</b></button>`:''}</div>
     ${idleVersus(m.turn,m.pot)}
-    <div class="opponent-slot">${card(null,{hidden:true,slot:'opponent'})}</div></section><div id="announcer" class="sr-only" aria-live="polite">${m.turn?'Your move':'Opponent turn'}</div></main>`;bindNav();
+    <div class="opponent-slot">${card(null,{hidden:true,slot:'opponent'})}</div></section><div id="announcer" class="sr-only" aria-live="polite">${m.turn?'Your move':'Opponent turn'}</div></main>`;bindNav();if(intro)battleIntroPending=false;
   if(m.turn)document.querySelectorAll('[data-stat]').forEach(b=>b.onclick=()=>{sfx('select');sendWs({type:'action',action:b.dataset.stat})});
   const sw=$('#netSwap');if(sw)bindSwapPreview(sw,()=>sendWs({type:'swap'}));bindBattleKeys({canChoose:m.turn,reveal:false,online:true});startDeadline(m.deadline)
 }
