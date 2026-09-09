@@ -10,6 +10,7 @@ jobs:
           node-version: 22
       - run: npm install
       - run: npm test
+      - run: npm run smoke
       - run: npm run validate:collection
       - run: npm run balance
       - run: node --check public/app.js && node --check public/engine.js && node --check server/index.js && node --check scripts/import-chimpions.js && node --check scripts/validate-collection.js && node --check scripts/balance-report.js
