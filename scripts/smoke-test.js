@@ -54,6 +54,11 @@ try{
   assert.equal(home.status,200);
   assert.match(await home.text(),/CHIMPIONS/i);
 
+  const battleTheme=await fetch(`${base}/audio/battle-theme.mp3`);
+  assert.equal(battleTheme.status,200);
+  assert.match(battleTheme.headers.get('content-type')||'',/audio\/mpeg/i);
+  assert.ok((await battleTheme.arrayBuffer()).byteLength>3_000_000);
+
   const manifestResponse=await fetch(`${base}/data/chimpions.json`);
   assert.equal(manifestResponse.status,200);
   const manifest=await manifestResponse.json();
@@ -85,7 +90,7 @@ try{
   }
   assert.notEqual(stateA.turn,stateB.turn);
 
-  console.log('Production smoke test passed: HTTP, health, 221-card manifest, and 1v1 WebSocket room handshake.');
+  console.log('Production smoke test passed: HTTP, health, battle-theme audio, 221-card manifest, and 1v1 WebSocket room handshake.');
 }finally{
   for(const c of [a,b])try{c?.ws?.close()}catch{}
   child.kill('SIGTERM');
