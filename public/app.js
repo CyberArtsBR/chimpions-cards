@@ -1,5 +1,5 @@
 import {
-  ATTRIBUTES,MODES,createMatch,legalAttributes,resolveRound,advanceMatch,finishMatch,
+  ATTRIBUTES,MODES,CPU_DIFFICULTIES,createMatch,legalAttributes,resolveRound,advanceMatch,finishMatch,
   reserveSwap,chooseCpuAttribute,attributeWinRate,decorateCards,validateCollection
 } from './engine.js';
 
@@ -10,16 +10,18 @@ const REVEAL_HOLD_NORMAL_MS=2400,REVEAL_HOLD_FAST_MS=1200,CPU_THINK_MS=900;
 const prefs={
   sfx:localStorage.getItem('chimpions:sfx')!=='off',
   music:localStorage.getItem('chimpions:music')!=='off',
-  fast:localStorage.getItem('chimpions:pace')==='fast'
+  fast:localStorage.getItem('chimpions:pace')==='fast',
+  difficulty:localStorage.getItem('chimpions:difficulty')||CPU_DIFFICULTIES.standard,
+  motion:localStorage.getItem('chimpions:motion')||'auto'
 };
-let audioCtx=null,battleTrack=null,battleMusicUnlockArmed=false,roundAdvanceTimer=null;
+let audioCtx=null,battleTrack=null,battleMusicUnlockArmed=false,roundAdvanceTimer=null,musicDuckTimer=null,cpuDifficulty=prefs.difficulty;
 
 const placeholder=`data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600"><rect width="600" height="600" fill="#111527"/><circle cx="300" cy="260" r="120" fill="#242b45"/><text x="300" y="300" text-anchor="middle" font-family="sans-serif" font-size="128" font-weight="800" fill="#c8ff42">C</text><text x="300" y="450" text-anchor="middle" font-family="sans-serif" font-size="28" fill="#aeb5cc">CHIMPION</text></svg>`)}`;
 
 function schedule(fn,ms){const e=epoch,id=setTimeout(()=>{timers.delete(id);if(e===epoch)fn()},ms);timers.add(id);return id}
 function every(fn,ms){const e=epoch,id=setInterval(()=>{if(e===epoch)fn();else{clearInterval(id);intervals.delete(id)}},ms);intervals.add(id);return id}
 function cleanup({closeSocket=true}={}){
-  epoch++; for(const id of timers)clearTimeout(id);timers.clear();for(const id of intervals)clearInterval(id);intervals.clear();roundAdvanceTimer=null;
+  epoch++; for(const id of timers)clearTimeout(id);timers.clear();for(const id of intervals)clearInterval(id);intervals.clear();roundAdvanceTimer=null;musicDuckTimer=null;document.onkeydown=null;
   stopBattleMusic(true);
   if(closeSocket&&socket){try{socket.close()}catch{}socket=null;netState=null}
 }
@@ -35,10 +37,17 @@ function tone(freq,duration=.12,gain=.035,type='sine',delay=0){
 }
 function sfx(type){
   if(!prefs.sfx)return;ensureAudio();
+  if(['reveal','win','lose','tie','final'].includes(type))duckBattleMusic(type==='final'?1700:950);
   const map={ui:[520],select:[360,620,920],reveal:[150,300,600],win:[440,660,880,1320],lose:[240,180,120],tie:[330,440,330],swap:[520,390],final:[523,659,784,1047,1318]};
   (map[type]||map.ui).forEach((freq,i)=>tone(freq,type==='reveal'?.2:.15,type==='final'?.05:.042,i%2?'triangle':'sine',i*.065))
 }
 const BATTLE_THEME_URL='/audio/battle-theme.mp3',BATTLE_MUSIC_VOLUME=.32;
+function duckBattleMusic(ms=900){
+  if(!battleTrack||battleTrack.paused)return;
+  battleTrack.volume=BATTLE_MUSIC_VOLUME*.38;
+  if(musicDuckTimer){clearTimeout(musicDuckTimer);timers.delete(musicDuckTimer)}
+  musicDuckTimer=schedule(()=>{musicDuckTimer=null;if(battleTrack&&!battleTrack.paused)battleTrack.volume=BATTLE_MUSIC_VOLUME},ms)
+}
 function ensureBattleTrack(){
   if(!battleTrack){
     battleTrack=new Audio(BATTLE_THEME_URL);battleTrack.loop=true;battleTrack.preload='auto';battleTrack.volume=BATTLE_MUSIC_VOLUME;
@@ -77,21 +86,32 @@ function toggleAudio(kind){
 function togglePace(){
   prefs.fast=!prefs.fast;localStorage.setItem('chimpions:pace',prefs.fast?'fast':'normal');renderAudioButtons()
 }
+function motionReduced(){
+  if(prefs.motion==='reduced')return true;
+  if(prefs.motion==='full')return false;
+  return Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
+}
+function toggleMotion(){
+  prefs.motion=prefs.motion==='auto'?'reduced':prefs.motion==='reduced'?'full':'auto';
+  localStorage.setItem('chimpions:motion',prefs.motion);applyMotionPreference();renderAudioButtons()
+}
+function applyMotionPreference(){document.body.classList.toggle('reduce-motion',motionReduced())}
 function renderAudioButtons(){
-  const s=$('#sfxToggle'),m=$('#musicToggle'),p=$('#paceToggle');
+  const s=$('#sfxToggle'),m=$('#musicToggle'),p=$('#paceToggle'),r=$('#motionToggle');
   if(s){s.textContent=prefs.sfx?'SFX ON':'SFX OFF';s.setAttribute('aria-pressed',String(prefs.sfx))}
   if(m){m.textContent=prefs.music?'MUSIC ON':'MUSIC OFF';m.setAttribute('aria-pressed',String(prefs.music))}
   if(p){p.textContent=prefs.fast?'PACE FAST':'PACE NORMAL';p.setAttribute('aria-pressed',String(prefs.fast))}
+  if(r){r.textContent='MOTION '+prefs.motion.toUpperCase();r.setAttribute('aria-pressed',String(motionReduced()))}
 }
 
-function nav(){const pace=screen==='battle'?'<button class="audio-toggle" id="paceToggle" aria-label="Toggle reveal pace"></button>':'';return `<header><button class="brand" data-go="menu"><b>CHIMPIONS</b><span>ATTRIBUTE ARENA</span></button><nav><button data-go="gallery">Collection</button><button data-go="help">How to play</button>${pace}<button class="audio-toggle" id="musicToggle" aria-label="Toggle music"></button><button class="audio-toggle" id="sfxToggle" aria-label="Toggle sound effects"></button></nav></header>`}
+function nav(){const pace=screen==='battle'?'<button class="audio-toggle" id="paceToggle" aria-label="Toggle reveal pace"></button>':'';return `<header><button class="brand" data-go="menu"><b>CHIMPIONS</b><span>ATTRIBUTE ARENA</span></button><nav><button data-go="gallery">Collection</button><button data-go="help">How to play</button>${pace}<button class="audio-toggle" id="motionToggle" aria-label="Cycle motion preference"></button><button class="audio-toggle" id="musicToggle" aria-label="Toggle music"></button><button class="audio-toggle" id="sfxToggle" aria-label="Toggle sound effects"></button></nav></header>`}
 function bindNav(){
   document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));
-  const s=$('#sfxToggle'),m=$('#musicToggle'),p=$('#paceToggle');if(s)s.onclick=()=>toggleAudio('sfx');if(m)m.onclick=()=>toggleAudio('music');if(p)p.onclick=togglePace;renderAudioButtons();bindImages();bindCardTilt();
+  const s=$('#sfxToggle'),m=$('#musicToggle'),p=$('#paceToggle'),r=$('#motionToggle');if(s)s.onclick=()=>toggleAudio('sfx');if(m)m.onclick=()=>toggleAudio('music');if(p)p.onclick=togglePace;if(r)r.onclick=toggleMotion;applyMotionPreference();renderAudioButtons();bindImages();bindCardTilt();
 }
 function bindImages(){document.querySelectorAll('img').forEach(img=>{img.addEventListener('error',()=>{if(img.src!==placeholder)img.src=placeholder},{once:true})})}
 function bindCardTilt(){
-  if(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)return;
+  if(motionReduced())return;
   if(!window.matchMedia?.('(pointer:fine)').matches)return;
   document.querySelectorAll('[data-card-tilt]').forEach(el=>{
     el.onpointermove=e=>{
@@ -104,10 +124,16 @@ function bindCardTilt(){
 }
 function preload(url){if(!url)return;const i=new Image();i.src=url}
 function currentMode(){return document.querySelector('[name="mode"]:checked')?.value||MODES.tactical}
+function currentDifficulty(){return document.querySelector('#cpuDifficulty')?.value||prefs.difficulty}
 const ATTRIBUTE_UI={
-  Power:{icon:'◆',short:'PWR'},Agility:{icon:'➤',short:'AGI'},Intellect:{icon:'◈',short:'INT'},
-  Tech:{icon:'⌬',short:'TEC'},Mystique:{icon:'✦',short:'MYS'},Charisma:{icon:'★',short:'CHA'}
+  Power:{short:'PWR',path:'M13 2 5 13h6l-1 9 9-13h-6z'},
+  Agility:{short:'AGI',path:'M4 12h14m-5-5 5 5-5 5M5 7h4M5 17h4'},
+  Intellect:{short:'INT',path:'M9 4a3 3 0 0 0-3 3v1a3 3 0 0 0-2 3 3 3 0 0 0 2 3v1a3 3 0 0 0 3 3m6-14a3 3 0 0 1 3 3v1a3 3 0 0 1 2 3 3 3 0 0 1-2 3v1a3 3 0 0 1-3 3M9 4v14m6-14v14'},
+  Tech:{short:'TEC',path:'M7 7h10v10H7zM9 2v3m6-3v3M9 19v3m6-3v3M2 9h3m-3 6h3m14-6h3m-3 6h3'},
+  Mystique:{short:'MYS',path:'M12 2l1.8 5.2L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9l5.2-1.8zM19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z'},
+  Charisma:{short:'CHA',path:'m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z'}
 };
+function attrIcon(a){const meta=ATTRIBUTE_UI[a]||ATTRIBUTE_UI.Power;return `<svg class="attr-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="${meta.path}"/></svg>`}
 function attrSlug(a=''){return String(a).toLowerCase()}
 function topAttribute(c){
   return ATTRIBUTES.reduce((best,a)=>c.stats[a]>c.stats[best]?a:best,ATTRIBUTES[0]);
@@ -140,7 +166,7 @@ function start(mode=MODES.tactical){
 function statMarkup(c,a,interactive,selected,disabled){
   const tag=interactive?'button':'div',reason=disabled?'Locked in Tactical mode because this attribute was used last round.':'',attrs=interactive?`data-stat="${a}" ${disabled?'disabled':''} ${reason?`title="${reason}" aria-label="${a} ${c.stats[a]}. ${reason}"`:''}`:'',meta=ATTRIBUTE_UI[a]||{icon:'•',short:a};
   return `<${tag} class="stat attr-${attrSlug(a)} ${selected===a?'selected':''} ${disabled?'locked':''}" ${attrs}>
-    <span class="stat-icon">${meta.icon}</span><span class="stat-name">${a}</span><b>${c.stats[a]}</b>${disabled?'<small class="stat-lock">LOCKED</small>':''}<i style="--v:${c.stats[a]}%"></i>
+    <span class="stat-icon">${attrIcon(a)}</span><span class="stat-name">${a}</span><b>${c.stats[a]}</b>${disabled?'<small class="stat-lock">LOCKED</small>':''}<i style="--v:${c.stats[a]}%"></i>
   </${tag}>`
 }
 function card(c,{hidden=false,interactive=false,selected=null,slot='player',disabledAttrs=[],outcome=null,reveal=false}={}){
@@ -149,7 +175,7 @@ function card(c,{hidden=false,interactive=false,selected=null,slot='player',disa
   const affinity=topAttribute(c),peak=c.stats[affinity],outcomeClass=outcome?` round-${outcome}`:'';
   return `<article class="card premium-card ${slot} affinity-${attrSlug(affinity)}${outcomeClass} ${reveal?'just-revealed':''}" data-card-tilt>
     <div class="card-foil"></div><div class="card-glint"></div><div class="card-inner">
-      <div class="art"><img src="${c.image}" alt="${escapeHtml(c.name)}" loading="eager"><span class="tribe-badge">${escapeHtml(c.tribe||'Unaligned')}</span><em class="edge-badge">${ATTRIBUTE_UI[affinity].icon} ${affinity} ${peak}</em></div>
+      <div class="art"><img src="${c.image}" alt="${escapeHtml(c.name)}" loading="eager"><span class="tribe-badge">${escapeHtml(c.tribe||'Unaligned')}</span><em class="edge-badge">${attrIcon(affinity)} ${affinity} ${peak}</em></div>
       <div class="cardhead"><small>#${String(c.id).padStart(3,'0')}</small><h2>${escapeHtml(c.name)}</h2><i>${ATTRIBUTE_UI[affinity].short}</i></div>
       <div class="stats">${ATTRIBUTES.map(a=>statMarkup(c,a,interactive,selected,disabledAttrs.includes(a))).join('')}</div>
     </div>
@@ -205,7 +231,7 @@ function idleVersus(canChoose,pot=0){
 function duelVersus(result,rightLabel='CPU'){
   const state=result.winner===null?'tie':result.winner===0?'you-win':'rival-win',winner=result.winner===null?null:result.cards[result.winner],verdict=result.winner===null?'STANDOFF':result.winner===0?'YOU WIN THE DUEL':`${rightLabel} WINS THE DUEL`;
   return `<div class="versus reveal-versus ${state}">
-    <div class="duel-attribute"><i>${ATTRIBUTE_UI[result.attribute]?.icon||'◆'}</i><span>${result.attribute} DUEL</span></div>
+    <div class="duel-attribute"><i>${attrIcon(result.attribute)}</i><span>${result.attribute} DUEL</span></div>
     <div class="duel-scoreline"><div><small>YOU</small><b class="score-value" data-target="${result.values[0]}">0</b></div><i>VS</i><div><small>${rightLabel}</small><b class="score-value" data-target="${result.values[1]}">0</b></div></div>
     <div class="duel-verdict">${verdict}</div>
     <div class="duel-winner-name">${winner?escapeHtml(winner.name):'THE POT GROWS'}</div>
@@ -302,7 +328,7 @@ function gallery(){
     let list=cards.filter(c=>(c.name+' '+(c.tribe||'')).toLowerCase().includes(q)&&(!tribe||c.tribe===tribe));
     list=[...list].sort((a,b)=>sort==='name'?a.name.localeCompare(b.name):ATTRIBUTES.includes(sort)?b.stats[sort]-a.stats[sort]:Number(a.id)-Number(b.id));
     $('#grid').innerHTML=list.length?list.map(c=>{const edge=topAttribute(c);return `<button class="tile affinity-${attrSlug(edge)}" data-id="${c.id}">
-      <div class="tile-art"><span class="tile-foil"></span><img loading="lazy" src="${c.image}" alt="${escapeHtml(c.name)}"><em>${ATTRIBUTE_UI[edge].icon} ${edge} ${c.stats[edge]}</em></div>
+      <div class="tile-art"><span class="tile-foil"></span><img loading="lazy" src="${c.image}" alt="${escapeHtml(c.name)}"><em>${attrIcon(edge)} ${edge} ${c.stats[edge]}</em></div>
       <div class="tile-head"><small>#${String(c.id).padStart(3,'0')}</small><b>${escapeHtml(c.name)}</b></div><span>${escapeHtml(c.tribe||'Unaligned')}</span>
     </button>`}).join(''):`<div class="empty-search">No Chimpions match these filters.</div>`;
     bindImages();document.querySelectorAll('.tile').forEach(t=>t.onclick=()=>showDetail(t.dataset.id))
