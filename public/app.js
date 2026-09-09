@@ -153,12 +153,14 @@ function menu(){
   screen='menu';
   const v=manifest?validateCollection(manifest):null;
   const collectionNote=v?`<div class="collection-status"><span class="live-dot"></span><b>${v.count} playable Chimpions</b><small>Official API collection snapshot</small></div>`:'';
-  app.innerHTML=nav()+`<main class="hero"><div class="hero-copy"><div class="eyebrow">${cards.length} ANIMATED CHIMPIONS • COMPETITIVE CARD BATTLE</div><h1>Every Chimpion<br><em>has a way to win.</em></h1><p>Read the matchup, pick the edge, and claim the standoff pot.</p><fieldset class="mode-picker"><legend>Ruleset</legend><label><input type="radio" name="mode" value="classic"><span><b>Classic</b><small>Traditional • winner chooses next</small></span></label><label><input type="radio" name="mode" value="tactical" checked><span><b>Tactical ★</b><small>Recommended • alternating turns • no repeat • 1 reserve swap</small></span></label></fieldset><div class="actions"><button class="primary" id="quick">Play vs CPU</button><button id="onlineBtn">Private 1v1</button></div><div class="features"><span>⚡ 5–8 min matches</span><span>◆ Equal stat budget</span><span>◎ Animated originals</span></div>${collectionNote}</div><div class="hero-card-stack" aria-hidden="true">${heroCards()}<div class="hero-glow"></div></div></main>`;
-  $('#quick').onclick=()=>{ensureAudio();sfx('ui');start(currentMode())};$('#onlineBtn').onclick=()=>{ensureAudio();sfx('ui');cleanup();online(currentMode())};bindNav()
+  app.innerHTML=nav()+`<main class="hero"><div class="hero-copy"><div class="eyebrow">${cards.length} ANIMATED CHIMPIONS • COMPETITIVE CARD BATTLE</div><h1>Every Chimpion<br><em>has a way to win.</em></h1><p>Read the matchup, pick the edge, and claim the standoff pot.</p><fieldset class="mode-picker"><legend>Ruleset</legend><label><input type="radio" name="mode" value="classic"><span><b>Classic</b><small>Traditional • winner chooses next</small></span></label><label><input type="radio" name="mode" value="tactical" checked><span><b>Tactical ★</b><small>Recommended • alternating turns • no repeat • 1 reserve swap</small></span></label></fieldset><label class="difficulty-picker"><span>CPU difficulty</span><select id="cpuDifficulty"><option value="easy">Easy</option><option value="standard">Standard</option><option value="expert">Expert</option></select><small>Fair AI only: difficulty changes decision quality, never hidden information.</small></label><div class="actions"><button class="primary" id="quick">Play vs CPU</button><button id="onlineBtn">Private 1v1</button></div><div class="features"><span>⚡ 5–8 min matches</span><span>◆ Equal stat budget</span><span>◎ Animated originals</span></div>${collectionNote}</div><div class="hero-card-stack" aria-hidden="true">${heroCards()}<div class="hero-glow"></div></div></main>`;
+  const diff=$('#cpuDifficulty');if(diff){diff.value=prefs.difficulty;diff.onchange=()=>{prefs.difficulty=diff.value;localStorage.setItem('chimpions:difficulty',prefs.difficulty)}}
+  $('#quick').onclick=()=>{ensureAudio();sfx('ui');start(currentMode(),currentDifficulty())};$('#onlineBtn').onclick=()=>{ensureAudio();sfx('ui');cleanup();online(currentMode())};bindNav()
 }
 
-function start(mode=MODES.tactical){
-  cleanup();screen='battle';ensureAudio();
+function start(mode=MODES.tactical,difficulty=prefs.difficulty){
+  cleanup();screen='battle';ensureAudio();cpuDifficulty=Object.values(CPU_DIFFICULTIES).includes(difficulty)?difficulty:CPU_DIFFICULTIES.standard;
+  prefs.difficulty=cpuDifficulty;localStorage.setItem('chimpions:difficulty',cpuDifficulty);
   const starter=Math.random()<.5?0:1;
   game=createMatch(cards,{deckSize:6,maxRounds:24,mode,starter});
   renderBattle();startBattleMusic({restart:true});sfx('ui');if(game.active===1)scheduleCpu();
@@ -225,6 +227,19 @@ function continueRound(){
   if(roundAdvanceTimer){clearTimeout(roundAdvanceTimer);timers.delete(roundAdvanceTimer);roundAdvanceTimer=null}
   afterReveal()
 }
+function bindBattleKeys({canChoose=false,reveal=false,online=false}={}){
+  document.onkeydown=e=>{
+    const tag=document.activeElement?.tagName;if(['INPUT','SELECT','TEXTAREA'].includes(tag))return;
+    if(reveal&&!online&&(e.key==='Enter'||e.key===' ')){e.preventDefault();$('#continueRound')?.click();return}
+    if(!canChoose)return;
+    if(/^[1-6]$/.test(e.key)){
+      const target=document.querySelector('[data-stat="'+ATTRIBUTES[Number(e.key)-1]+'"]');
+      if(target&&!target.disabled){e.preventDefault();target.click()}return
+    }
+    if(e.key.toLowerCase()==='s'){const swap=online?$('#netSwap'):$('#swap');if(swap&&!swap.disabled){e.preventDefault();swap.click()}}
+  };
+  schedule(()=>{const target=reveal&&!online?$('#continueRound'):canChoose?document.querySelector('[data-stat]:not(:disabled)'):null;target?.focus()},35)
+}
 function idleVersus(canChoose,pot=0){
   return `<div class="versus idle-versus"><div class="arena-core"><span>VS</span></div><b>${canChoose?'CHOOSE YOUR EDGE':'OPPONENT THINKING'}</b>${pot?`<div class="pot">POT × ${pot}</div>`:''}</div>`
 }
@@ -259,7 +274,7 @@ function renderBattle(){
   const banner=reveal?`${result.attribute.toUpperCase()} LOCKED • ROUND RESOLVED`:canChoose?'YOUR TURN • CHOOSE AN ATTRIBUTE':'CPU IS SCANNING THE MATCHUP';
   app.innerHTML=nav()+`<main class="arena ${roundClass} ${phaseClass}">
     <div class="arena-atmosphere"><i></i><i></i><i></i></div>
-    ${battleHud(game.decks[0].length,game.decks[1].length,'CPU',game.round,game.maxRounds,game.mode,game.pot.length*2)}
+    ${battleHud(game.decks[0].length,game.decks[1].length,'CPU',game.round,game.maxRounds,game.mode+' · '+cpuDifficulty+' CPU',game.pot.length*2)}
     <div class="turn-banner ${canChoose?'your-turn':''} ${reveal?'result-banner':''}">${banner}</div>
     ${game.mode===MODES.tactical?tacticalStatus(game,['YOU','CPU']):''}
     <section class="table">
@@ -270,12 +285,12 @@ function renderBattle(){
     ${reveal?captureFx(result):''}
     ${reveal?'<div class="round-actions"><button class="primary continue-round" id="continueRound">Next round</button><small>Auto-continues in '+(revealHoldMs()/1000).toFixed(1)+'s · '+(prefs.fast?'Fast':'Normal')+' pace</small></div>':''}
     <aside class="battle-log"><h3>Battle telemetry</h3>${historyHtml()}</aside>
-    <div id="announcer" class="sr-only" aria-live="assertive">${status}</div>
+    <div id="announcer" class="sr-only" aria-live="polite">${status}</div>
   </main>`;
   bindNav();if(reveal)animateDuelScores();
   if(canChoose)document.querySelectorAll('[data-stat]').forEach(b=>b.onclick=()=>choose(b.dataset.stat));
   const sw=$('#swap');if(sw)bindSwapPreview(sw,doSwap);
-  const next=$('#continueRound');if(next)next.onclick=continueRound;
+  const next=$('#continueRound');if(next)next.onclick=continueRound;bindBattleKeys({canChoose,reveal,online:false});
   preload(game.decks[0][1]?.image);preload(game.decks[1][1]?.image)
 }
 function choose(attribute){
@@ -295,10 +310,10 @@ function scheduleCpu(){
   schedule(()=>{
     if(!game||game.finished||game.phase!=='choose'||game.active!==1)return;
     const banned=game.mode===MODES.tactical?game.lastAttribute:null;
-    let chosen=chooseCpuAttribute(game.decks[1][0],cards,banned);
+    let chosen=chooseCpuAttribute(game.decks[1][0],cards,banned,{difficulty:cpuDifficulty,rng:Math.random});
     const strength=attributeWinRate(game.decks[1][0],chosen,cards);
     if(game.mode===MODES.tactical&&game.swaps[1]&&game.decks[1].length>1&&strength<.42){
-      reserveSwap(game,1);sfx('swap');renderBattle();chosen=chooseCpuAttribute(game.decks[1][0],cards,banned)
+      reserveSwap(game,1);sfx('swap');renderBattle();chosen=chooseCpuAttribute(game.decks[1][0],cards,banned,{difficulty:cpuDifficulty,rng:Math.random})
     }
     const r=resolveRound(game,chosen,1);sfx('reveal');schedule(()=>roundSound(r),650);renderBattle();queueRoundAdvance()
   },CPU_THINK_MS)
@@ -317,7 +332,7 @@ function finish(){
     <div class="result-metrics"><span><b>${out.roundsPlayed}</b> rounds</span><span><b>${margin}</b> card margin</span><span><b>${out.history.filter(h=>h.winner===null).length}</b> standoffs</span></div>
     <div class="result-actions"><button class="primary" id="again">Rematch</button><button data-go="menu">Main menu</button></div>
   </main>`;
-  $('#again').onclick=()=>start(game.mode);bindNav()
+  $('#again').onclick=()=>start(game.mode,cpuDifficulty);bindNav()
 }
 
 function gallery(){
@@ -370,9 +385,9 @@ function netBattle(m){
     ${m.mode===MODES.tactical?tacticalStatus({lastAttribute:m.lastAttribute,active:m.turn?0:1,swaps:m.swaps},['YOU','RIVAL']):''}
     <section class="table"><div class="player-slot">${card(m.card,{interactive:m.turn,slot:'player',disabledAttrs:disabled})}${m.mode===MODES.tactical?`<button class="swap" id="netSwap" ${!m.turn||!m.swaps?.[0]?'disabled':''}>Reserve swap <b>${m.swaps?.[0]||0}</b></button>`:''}</div>
     ${idleVersus(m.turn,m.pot)}
-    <div class="opponent-slot">${card(null,{hidden:true,slot:'opponent'})}</div></section><div id="announcer" class="sr-only" aria-live="assertive">${m.turn?'Your move':'Opponent turn'}</div></main>`;bindNav();
+    <div class="opponent-slot">${card(null,{hidden:true,slot:'opponent'})}</div></section><div id="announcer" class="sr-only" aria-live="polite">${m.turn?'Your move':'Opponent turn'}</div></main>`;bindNav();
   if(m.turn)document.querySelectorAll('[data-stat]').forEach(b=>b.onclick=()=>{sfx('select');sendWs({type:'action',action:b.dataset.stat})});
-  const sw=$('#netSwap');if(sw)bindSwapPreview(sw,()=>sendWs({type:'swap'}));startDeadline(m.deadline)
+  const sw=$('#netSwap');if(sw)bindSwapPreview(sw,()=>sendWs({type:'swap'}));bindBattleKeys({canChoose:m.turn,reveal:false,online:true});startDeadline(m.deadline)
 }
 function netReveal(m){
   for(const id of intervals)clearInterval(id);intervals.clear();const winner=m.winner===null?null:m.winner==='you'?0:1,cls=winner===null?'is-tie':winner===0?'is-win':'is-loss',status=winner===null?'STANDOFF':winner===0?'YOU WIN':'RIVAL WINS',result={cards:m.cards,values:m.values,attribute:m.attribute,winner};
@@ -385,7 +400,7 @@ function netReveal(m){
     ${duelVersus(result,'RIVAL')}
     <div class="opponent-slot">${card(m.cards[1],{selected:m.attribute,slot:'opponent',outcome:winner===null?'tie':winner===1?'winner':'loser',reveal:true})}</div></section>
     ${captureFx(result)}
-    <div id="announcer" class="sr-only" aria-live="assertive">${status}</div></main>`;bindNav();animateDuelScores()
+    <div id="announcer" class="sr-only" aria-live="polite">${status}</div></main>`;bindNav();animateDuelScores();bindBattleKeys({canChoose:false,reveal:true,online:true})
 }
 function netGameOver(m){
   stopBattleMusic(true);
