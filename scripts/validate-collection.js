@@ -1,10 +1,12 @@
 import {readFile} from 'node:fs/promises';
 import {decorateCards,validateCollection,ATTRIBUTES} from '../public/engine.js';
 
-const path=process.argv[2]||'public/data/chimpions.json';
-const strict=process.argv.includes('--strict')||process.env.STRICT_COLLECTION==='1';
+const args=process.argv.slice(2);
+const strict=args.includes('--strict')||process.env.STRICT_COLLECTION==='1';
+const path=args.find(a=>!a.startsWith('--'))||'public/data/chimpions.json';
 const manifest=JSON.parse(await readFile(path,'utf8'));
 const report=validateCollection(manifest),cards=decorateCards(manifest.cards||[]);
+report.apiReportedTotal=manifest.apiReportedTotal??null;
 for(const c of cards){
   const vals=ATTRIBUTES.map(a=>c.stats[a]),sum=vals.reduce((a,b)=>a+b,0);
   if(sum!==360)report.errors.push(`${c.name}: stat budget ${sum}, expected 360`);
