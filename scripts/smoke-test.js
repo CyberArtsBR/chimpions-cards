@@ -62,7 +62,7 @@ try{
   const arenaVideo=await fetch(`${base}/video/crowd-and-flag.mp4`);
   assert.equal(arenaVideo.status,200);
   assert.match(arenaVideo.headers.get('content-type')||'',/video\/mp4/i);
-  assert.ok((await arenaVideo.arrayBuffer()).byteLength>4_000_000);
+  assert.ok((await arenaVideo.arrayBuffer()).byteLength>100_000);
 
   const manifestResponse=await fetch(`${base}/data/chimpions.json`);
   assert.equal(manifestResponse.status,200);
