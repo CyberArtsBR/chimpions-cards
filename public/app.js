@@ -43,6 +43,8 @@ function sfx(type){
 }
 const BATTLE_THEME_URL='/audio/battle-theme.mp3',BATTLE_MUSIC_VOLUME=.32;
 const ARENA_VIDEO_URL='/video/crowd-and-flag.mp4';
+const ARENA_FALLBACK_URL='/images/arena-fallback.jpg';
+const PIXEL_LOGO_URL='/images/chimpions-logo-pixel.jpg';
 const OFFICIAL_LINKS={
   site:'https://www.chimpions.co/',
   x:'https://x.com/TheChimpions',
@@ -127,7 +129,7 @@ function officialLinks(compact=false){
 }
 function backgroundVideo(kind='battle'){
   return `<div class="arena-video arena-video-${kind}" aria-hidden="true">
-    <video autoplay muted loop playsinline preload="auto">
+    <video autoplay muted loop playsinline preload="auto" poster="${ARENA_FALLBACK_URL}">
       <source src="${ARENA_VIDEO_URL}" type="video/mp4">
     </video>
     <div class="arena-video-color"></div>
@@ -136,10 +138,11 @@ function backgroundVideo(kind='battle'){
 }
 function nav(){
   const pace=screen==='battle'?'<button class="pace-toggle" id="paceToggle" aria-label="Toggle reveal pace"></button>':'';
+  const brand=`<button class="brand ${screen==='battle'||screen==='online'?'compact':''}" data-go="menu" aria-label="Chimpions Arena home"><img class="brand-logo-pixel" src="${PIXEL_LOGO_URL}" alt="The Chimpions"><span class="brand-arena-word">ARENA</span></button>`;
   if(screen==='battle'||screen==='online'){
-    return `<div class="battle-topbar"><button class="brand compact" data-go="menu" aria-label="Chimpions Arena home"><b>CHIMPIONS</b><span>ARENA</span></button><div class="battle-topbar-actions">${pace}<button class="motion-toggle" id="motionToggle" aria-label="Cycle motion preference"></button><button class="audio-toggle" id="musicToggle" aria-label="Toggle music"></button><button class="audio-toggle" id="sfxToggle" aria-label="Toggle sound effects"></button><button class="battle-menu-btn" data-go="menu">Main menu</button></div></div>`
+    return `<div class="battle-topbar">${brand}<div class="battle-topbar-actions">${pace}<button class="motion-toggle" id="motionToggle" aria-label="Cycle motion preference"></button><button class="audio-toggle" id="musicToggle" aria-label="Toggle music"></button><button class="audio-toggle" id="sfxToggle" aria-label="Toggle sound effects"></button><button class="battle-menu-btn" data-go="menu">Main menu</button></div></div>`
   }
-  return `<header><button class="brand" data-go="menu" aria-label="Chimpions Arena home"><b>CHIMPIONS</b><span>ARENA</span></button>${officialLinks(true)}<nav><button data-go="gallery">Collection</button><button data-go="help">How to play</button><button class="motion-toggle" id="motionToggle" aria-label="Cycle motion preference"></button><button class="audio-toggle" id="musicToggle" aria-label="Toggle music"></button><button class="audio-toggle" id="sfxToggle" aria-label="Toggle sound effects"></button></nav></header>`
+  return `<header>${brand}${officialLinks(true)}<nav><button data-go="gallery">Collection</button><button data-go="help">How to play</button><button class="motion-toggle" id="motionToggle" aria-label="Cycle motion preference"></button><button class="audio-toggle" id="musicToggle" aria-label="Toggle music"></button><button class="audio-toggle" id="sfxToggle" aria-label="Toggle sound effects"></button></nav></header>`
 }
 function bindNav(){
   document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));
@@ -190,7 +193,7 @@ function menu(){
   const v=manifest?validateCollection(manifest):null;
   const collectionNote=v?`<div class="collection-status"><span class="live-dot"></span><b>${v.count} playable Chimpions</b><small>Official snapshot • CPU + private 1v1</small></div>`:'';
   app.innerHTML=nav()+`<main class="hero arena-home">${backgroundVideo('home')}<div class="hero-copy">
-    <div class="hero-logo-lockup"><div class="hero-logo-title">The Chimpions</div><div class="hero-logo-arena">Arena</div><div class="hero-logo-subtitle">Animated card battles from the Chimpions universe</div></div>
+    <div class="hero-logo-lockup"><img class="hero-logo-pixel" src="${PIXEL_LOGO_URL}" alt="The Chimpions"><div class="hero-logo-arena">Arena</div><div class="hero-logo-subtitle">Animated card battles from the Chimpions universe</div></div>
     <div class="eyebrow">${cards.length} PLAYABLE CHIMPIONS • STRATEGIC CARD DUELS</div>
     <h1>Read the card.<br><em>Own the arena.</em></h1>
     <p>Pick the best edge, reveal the rival, and control the standoff pot in a clean tactical showdown.</p>
