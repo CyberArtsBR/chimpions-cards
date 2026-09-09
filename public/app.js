@@ -6,8 +6,9 @@ import {
 const $=s=>document.querySelector(s),app=$('#app');
 let cards=[],manifest=null,game=null,screen='menu',epoch=0,socket=null,netState=null;
 const timers=new Set(),intervals=new Set();
+const REVEAL_HOLD_MS=3000,CPU_THINK_MS=900;
 const prefs={sfx:localStorage.getItem('chimpions:sfx')!=='off',music:localStorage.getItem('chimpions:music')!=='off'};
-let audioCtx=null,musicInterval=null,musicStep=0;
+let audioCtx=null,musicInterval=null,musicStep=0,musicMaster=null,noiseBuffer=null;
 
 const placeholder=`data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600"><rect width="600" height="600" fill="#111527"/><circle cx="300" cy="260" r="120" fill="#242b45"/><text x="300" y="300" text-anchor="middle" font-family="sans-serif" font-size="128" font-weight="800" fill="#c8ff42">C</text><text x="300" y="450" text-anchor="middle" font-family="sans-serif" font-size="28" fill="#aeb5cc">CHIMPION</text></svg>`)}`;
 
@@ -20,27 +21,71 @@ function cleanup({closeSocket=true}={}){
 function go(name){cleanup();screen=name;({menu,gallery,help,online}[name]||menu)()}
 
 function ensureAudio(){
-  if(!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+  if(!audioCtx){
+    audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    musicMaster=audioCtx.createGain();musicMaster.gain.value=.78;musicMaster.connect(audioCtx.destination);
+    noiseBuffer=audioCtx.createBuffer(1,Math.floor(audioCtx.sampleRate*.09),audioCtx.sampleRate);
+    const data=noiseBuffer.getChannelData(0);for(let i=0;i<data.length;i++)data[i]=Math.random()*2-1;
+  }
   if(audioCtx.state==='suspended')audioCtx.resume().catch(()=>{});
-  if(prefs.music&&!musicInterval){musicInterval=setInterval(musicBeat,1400)}
+  if(prefs.music&&!musicInterval){musicStep=0;musicBeat();musicInterval=setInterval(musicBeat,420)}
 }
-function tone(freq,duration=.12,gain=.035,type='sine',delay=0){
-  if(!audioCtx)return;const t=audioCtx.currentTime+delay,o=audioCtx.createOscillator(),g=audioCtx.createGain();
-  o.type=type;o.frequency.setValueAtTime(freq,t);g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(gain,t+.01);g.gain.exponentialRampToValueAtTime(.0001,t+duration);o.connect(g).connect(audioCtx.destination);o.start(t);o.stop(t+duration+.03)
+function tone(freq,duration=.12,gain=.035,type='sine',delay=0,bus='sfx'){
+  if(!audioCtx)return;const t=audioCtx.currentTime+delay,o=audioCtx.createOscillator(),g=audioCtx.createGain(),dest=bus==='music'&&musicMaster?musicMaster:audioCtx.destination;
+  o.type=type;o.frequency.setValueAtTime(freq,t);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(gain,t+.018);g.gain.exponentialRampToValueAtTime(.0001,t+duration);o.connect(g).connect(dest);o.start(t);o.stop(t+duration+.04)
 }
-function sfx(type){if(!prefs.sfx)return;ensureAudio();const map={ui:[520],select:[420,620],win:[440,660,880],lose:[260,190],tie:[330,330],swap:[520,390],final:[523,659,784,1047]};(map[type]||map.ui).forEach((f,i)=>tone(f,.13,.04,'triangle',i*.08))}
-function musicBeat(){if(!prefs.music||!audioCtx||audioCtx.state!=='running')return;const notes=[110,138.59,164.81,138.59];tone(notes[musicStep++%notes.length],.55,.012,'sine')}
-function toggleAudio(kind){prefs[kind]=!prefs[kind];localStorage.setItem(`chimpions:${kind}`,prefs[kind]?'on':'off');ensureAudio();if(!prefs.music&&musicInterval){clearInterval(musicInterval);musicInterval=null}renderAudioButtons()}
+function noiseHit(duration=.05,gain=.012){
+  if(!audioCtx||!noiseBuffer||!musicMaster)return;const src=audioCtx.createBufferSource(),filter=audioCtx.createBiquadFilter(),g=audioCtx.createGain(),t=audioCtx.currentTime;
+  src.buffer=noiseBuffer;filter.type='highpass';filter.frequency.value=2600;g.gain.setValueAtTime(gain,t);g.gain.exponentialRampToValueAtTime(.0001,t+duration);src.connect(filter).connect(g).connect(musicMaster);src.start(t);src.stop(t+duration)
+}
+function sfx(type){
+  if(!prefs.sfx)return;ensureAudio();
+  const map={ui:[520],select:[360,620,920],reveal:[150,300,600],win:[440,660,880,1320],lose:[240,180,120],tie:[330,440,330],swap:[520,390],final:[523,659,784,1047,1318]};
+  (map[type]||map.ui).forEach((freq,i)=>tone(freq,type==='reveal'?.2:.15,type==='final'?.05:.042,i%2?'triangle':'sine',i*.065))
+}
+function musicBeat(){
+  if(!prefs.music||!audioCtx||audioCtx.state!=='running')return;
+  const step=musicStep++%16,bass=[55,55,65.41,49],arp=[220,261.63,329.63,392,329.63,261.63,246.94,293.66,220,261.63,349.23,440,349.23,293.66,246.94,196];
+  tone(arp[step],.2,.013,step%2?'triangle':'sine',0,'music');
+  if(step%4===0)tone(bass[(step/4)%bass.length],.72,.03,'sine',0,'music');
+  if(step%8===0){
+    const root=step===0?[110,164.81,220]:[98,146.83,196];
+    root.forEach((freq,i)=>tone(freq,1.7,.0065,'sine',i*.02,'music'));
+  }
+  if([2,6,10,14].includes(step))noiseHit(.045,.009);
+}
+function toggleAudio(kind){
+  prefs[kind]=!prefs[kind];localStorage.setItem(`chimpions:${kind}`,prefs[kind]?'on':'off');
+  if(prefs[kind])ensureAudio();
+  if(kind==='music'&&!prefs.music&&musicInterval){clearInterval(musicInterval);musicInterval=null}
+  renderAudioButtons()
+}
 function renderAudioButtons(){const s=$('#sfxToggle'),m=$('#musicToggle');if(s){s.textContent=prefs.sfx?'SFX ON':'SFX OFF';s.setAttribute('aria-pressed',String(prefs.sfx))}if(m){m.textContent=prefs.music?'MUSIC ON':'MUSIC OFF';m.setAttribute('aria-pressed',String(prefs.music))}}
 
 function nav(){return `<header><button class="brand" data-go="menu"><b>CHIMPIONS</b><span>ATTRIBUTE ARENA</span></button><nav><button data-go="gallery">Collection</button><button data-go="help">How to play</button><button class="audio-toggle" id="musicToggle" aria-label="Toggle music"></button><button class="audio-toggle" id="sfxToggle" aria-label="Toggle sound effects"></button></nav></header>`}
 function bindNav(){
   document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));
-  const s=$('#sfxToggle'),m=$('#musicToggle');if(s)s.onclick=()=>toggleAudio('sfx');if(m)m.onclick=()=>toggleAudio('music');renderAudioButtons();bindImages();
+  const s=$('#sfxToggle'),m=$('#musicToggle');if(s)s.onclick=()=>toggleAudio('sfx');if(m)m.onclick=()=>toggleAudio('music');renderAudioButtons();bindImages();bindCardTilt();
 }
 function bindImages(){document.querySelectorAll('img').forEach(img=>{img.addEventListener('error',()=>{if(img.src!==placeholder)img.src=placeholder},{once:true})})}
+function bindCardTilt(){
+  if(!window.matchMedia?.('(pointer:fine)').matches)return;
+  document.querySelectorAll('[data-card-tilt]').forEach(el=>{
+    el.onpointermove=e=>{
+      const r=el.getBoundingClientRect(),x=(e.clientX-r.left)/r.width,y=(e.clientY-r.top)/r.height;
+      el.style.setProperty('--rx',`${(0.5-y)*8}deg`);el.style.setProperty('--ry',`${(x-0.5)*10}deg`);
+      el.style.setProperty('--mx',`${x*100}%`);el.style.setProperty('--my',`${y*100}%`);
+    };
+    el.onpointerleave=()=>{el.style.setProperty('--rx','0deg');el.style.setProperty('--ry','0deg');el.style.setProperty('--mx','50%');el.style.setProperty('--my','50%')}
+  })
+}
 function preload(url){if(!url)return;const i=new Image();i.src=url}
 function currentMode(){return document.querySelector('[name="mode"]:checked')?.value||MODES.tactical}
+const ATTRIBUTE_UI={
+  Power:{icon:'◆',short:'PWR'},Agility:{icon:'➤',short:'AGI'},Intellect:{icon:'◈',short:'INT'},
+  Tech:{icon:'⌬',short:'TEC'},Mystique:{icon:'✦',short:'MYS'},Charisma:{icon:'★',short:'CHA'}
+};
+function attrSlug(a=''){return String(a).toLowerCase()}
 function topAttribute(c){
   return ATTRIBUTES.reduce((best,a)=>c.stats[a]>c.stats[best]?a:best,ATTRIBUTES[0]);
 }
@@ -70,13 +115,22 @@ function start(mode=MODES.tactical){
   renderBattle();sfx('ui');if(game.active===1)scheduleCpu();
 }
 function statMarkup(c,a,interactive,selected,disabled){
-  const tag=interactive?'button':'div',attrs=interactive?`data-stat="${a}" ${disabled?'disabled':''}`:'';
-  return `<${tag} class="stat ${selected===a?'selected':''} ${disabled?'locked':''}" ${attrs}><span>${a}</span><b>${c.stats[a]}</b><i style="--v:${c.stats[a]}%"></i></${tag}>`
+  const tag=interactive?'button':'div',attrs=interactive?`data-stat="${a}" ${disabled?'disabled':''}`:'',meta=ATTRIBUTE_UI[a]||{icon:'•',short:a};
+  return `<${tag} class="stat attr-${attrSlug(a)} ${selected===a?'selected':''} ${disabled?'locked':''}" ${attrs}>
+    <span class="stat-icon">${meta.icon}</span><span class="stat-name">${a}</span><b>${c.stats[a]}</b><i style="--v:${c.stats[a]}%"></i>
+  </${tag}>`
 }
-function card(c,{hidden=false,interactive=false,selected=null,slot='player',disabledAttrs=[]}={}){
-  if(hidden)return `<article class="card back ${slot}"><div class="sigil">C</div><b>HIDDEN CHIMPION</b><small>Opponent card reveals after a choice</small></article>`;
+function card(c,{hidden=false,interactive=false,selected=null,slot='player',disabledAttrs=[],outcome=null,reveal=false}={}){
+  if(hidden)return `<article class="card back ${slot}"><div class="back-rings"></div><div class="sigil">C</div><b>CHIMPION // CLASSIFIED</b><small>Opponent card reveals after lock-in</small></article>`;
   if(!c)return '';
-  return `<article class="card ${slot}"><div class="art"><img src="${c.image}" alt="${escapeHtml(c.name)}" loading="eager"><span>${escapeHtml(c.tribe||'Unaligned')}</span></div><div class="cardhead"><small>#${String(c.id).padStart(3,'0')}</small><h2>${escapeHtml(c.name)}</h2></div><div class="stats">${ATTRIBUTES.map(a=>statMarkup(c,a,interactive,selected,disabledAttrs.includes(a))).join('')}</div></article>`
+  const affinity=topAttribute(c),peak=c.stats[affinity],outcomeClass=outcome?` round-${outcome}`:'';
+  return `<article class="card premium-card ${slot} affinity-${attrSlug(affinity)}${outcomeClass} ${reveal?'just-revealed':''}" data-card-tilt>
+    <div class="card-foil"></div><div class="card-glint"></div><div class="card-inner">
+      <div class="art"><img src="${c.image}" alt="${escapeHtml(c.name)}" loading="eager"><span class="tribe-badge">${escapeHtml(c.tribe||'Unaligned')}</span><em class="edge-badge">${ATTRIBUTE_UI[affinity].icon} ${affinity} ${peak}</em></div>
+      <div class="cardhead"><small>#${String(c.id).padStart(3,'0')}</small><h2>${escapeHtml(c.name)}</h2><i>${ATTRIBUTE_UI[affinity].short}</i></div>
+      <div class="stats">${ATTRIBUTES.map(a=>statMarkup(c,a,interactive,selected,disabledAttrs.includes(a))).join('')}</div>
+    </div>
+  </article>`
 }
 function escapeHtml(s=''){return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
 function outcomeText(result){
@@ -88,14 +142,52 @@ function historyHtml(){
   if(!game.history.length)return '<span class="empty-history">No battles yet</span>';
   return game.history.slice(-4).reverse().map(h=>`<div><b>R${h.round}</b><span>${h.attribute}</span><em>${h.values[0]}–${h.values[1]}</em><i>${h.winner===null?'Tie':h.winner===0?'You':'CPU'}</i></div>`).join('')
 }
+function battleHud(left,right,rightLabel,round,maxRounds,mode,pot=0){
+  return `<div class="hud">
+    <div class="hud-side you"><span>YOU</span><div class="hud-count"><b>${left}</b><small>CARDS</small></div></div>
+    <div class="hud-round"><small>ROUND</small><b>${round}<i>/</i>${maxRounds}</b><em>${pot?`STANDOFF POT × ${pot}`:String(mode||'').toUpperCase()}</em></div>
+    <div class="hud-side rival"><div class="hud-count"><b>${right}</b><small>CARDS</small></div><span>${rightLabel}</span></div>
+  </div>`
+}
+function idleVersus(canChoose,pot=0){
+  return `<div class="versus idle-versus"><div class="arena-core"><span>VS</span></div><b>${canChoose?'CHOOSE YOUR EDGE':'OPPONENT THINKING'}</b>${pot?`<div class="pot">POT × ${pot}</div>`:''}</div>`
+}
+function duelVersus(result,rightLabel='CPU'){
+  const state=result.winner===null?'tie':result.winner===0?'you-win':'rival-win',winner=result.winner===null?null:result.cards[result.winner],verdict=result.winner===null?'STANDOFF':result.winner===0?'YOU WIN THE DUEL':`${rightLabel} WINS THE DUEL`;
+  return `<div class="versus reveal-versus ${state}">
+    <div class="duel-attribute"><i>${ATTRIBUTE_UI[result.attribute]?.icon||'◆'}</i><span>${result.attribute} DUEL</span></div>
+    <div class="duel-scoreline"><div><small>YOU</small><b class="score-value" data-target="${result.values[0]}">0</b></div><i>VS</i><div><small>${rightLabel}</small><b class="score-value" data-target="${result.values[1]}">0</b></div></div>
+    <div class="duel-verdict">${verdict}</div>
+    <div class="duel-winner-name">${winner?escapeHtml(winner.name):'THE POT GROWS'}</div>
+  </div>`
+}
+function animateDuelScores(){
+  const els=[...document.querySelectorAll('.score-value')];if(!els.length)return;
+  const start=performance.now(),duration=720;
+  const tick=now=>{const p=Math.min(1,(now-start)/duration),ease=1-Math.pow(1-p,3);els.forEach(el=>el.textContent=Math.round(Number(el.dataset.target||0)*ease));if(p<1)requestAnimationFrame(tick)};
+  requestAnimationFrame(tick)
+}
 function renderBattle(){
   if(!game)return menu();if(game.finished)return finish();
   const reveal=game.phase==='reveal',result=game.result;
   const p=reveal?result.cards[0]:game.decks[0][0],o=reveal?result.cards[1]:game.decks[1][0];
   const canChoose=!reveal&&game.active===0,legal=legalAttributes(game),disabled=ATTRIBUTES.filter(a=>!legal.includes(a));
-  const status=outcomeText(result),roundClass=reveal?(result.winner===null?'is-tie':result.winner===0?'is-win':'is-loss'):'';
-  app.innerHTML=nav()+`<main class="arena ${roundClass}"><div class="hud"><span>YOU <b>${game.decks[0].length}</b></span><span>ROUND ${game.round}/${game.maxRounds}<small>${game.pot.length?`STANDOFF POT ${game.pot.length*2}`:game.mode.toUpperCase()}</small></span><span><b>${game.decks[1].length}</b> CPU</span></div><div class="turn-banner ${canChoose?'your-turn':''}">${status}</div><section class="table"><div class="player-slot">${card(p,{interactive:canChoose,selected:result?.attribute,slot:'player',disabledAttrs:disabled})}${game.mode===MODES.tactical&&!reveal?`<button class="swap" id="swap" ${!canChoose||!game.swaps[0]||game.decks[0].length<2?'disabled':''}>Reserve swap <b>${game.swaps[0]}</b></button>`:''}</div><div class="versus"><b>${reveal?`${result.values[0]}<i>VS</i>${result.values[1]}`:'VS'}</b><span>${reveal?result.attribute:(canChoose?'PICK AN EDGE':'WAITING')}</span>${game.pot.length?`<div class="pot">POT × ${game.pot.length*2}</div>`:''}</div><div class="opponent-slot">${card(o,{hidden:!reveal,interactive:false,selected:result?.attribute,slot:'opponent'})}</div></section><aside class="battle-log"><h3>Battle history</h3>${historyHtml()}</aside><div id="announcer" class="sr-only" aria-live="assertive">${status}</div></main>`;
-  bindNav();
+  const status=outcomeText(result),roundClass=reveal?(result.winner===null?'is-tie':result.winner===0?'is-win':'is-loss'):'',phaseClass=reveal?'reveal-phase':'choose-phase';
+  const pOutcome=reveal?(result.winner===null?'tie':result.winner===0?'winner':'loser'):null,oOutcome=reveal?(result.winner===null?'tie':result.winner===1?'winner':'loser'):null;
+  const banner=reveal?`${result.attribute.toUpperCase()} LOCKED • ROUND RESOLVED`:canChoose?'YOUR TURN • CHOOSE AN ATTRIBUTE':'CPU IS SCANNING THE MATCHUP';
+  app.innerHTML=nav()+`<main class="arena ${roundClass} ${phaseClass}">
+    <div class="arena-atmosphere"><i></i><i></i><i></i></div>
+    ${battleHud(game.decks[0].length,game.decks[1].length,'CPU',game.round,game.maxRounds,game.mode,game.pot.length*2)}
+    <div class="turn-banner ${canChoose?'your-turn':''} ${reveal?'result-banner':''}">${banner}</div>
+    <section class="table">
+      <div class="player-slot">${card(p,{interactive:canChoose,selected:result?.attribute,slot:'player',disabledAttrs:disabled,outcome:pOutcome})}${game.mode===MODES.tactical&&!reveal?`<button class="swap" id="swap" ${!canChoose||!game.swaps[0]||game.decks[0].length<2?'disabled':''}>Reserve swap <b>${game.swaps[0]}</b></button>`:''}</div>
+      ${reveal?duelVersus(result,'CPU'):idleVersus(canChoose,game.pot.length*2)}
+      <div class="opponent-slot">${card(o,{hidden:!reveal,interactive:false,selected:result?.attribute,slot:'opponent',outcome:oOutcome,reveal})}</div>
+    </section>
+    <aside class="battle-log"><h3>Battle telemetry</h3>${historyHtml()}</aside>
+    <div id="announcer" class="sr-only" aria-live="assertive">${status}</div>
+  </main>`;
+  bindNav();if(reveal)animateDuelScores();
   if(canChoose)document.querySelectorAll('[data-stat]').forEach(b=>b.onclick=()=>choose(b.dataset.stat));
   const sw=$('#swap');if(sw)sw.onclick=()=>doSwap();
   preload(game.decks[0][1]?.image);preload(game.decks[1][1]?.image)
@@ -103,7 +195,7 @@ function renderBattle(){
 function choose(attribute){
   if(!game||game.finished||game.phase!=='choose'||game.active!==0)return;
   ensureAudio();sfx('select');
-  try{const r=resolveRound(game,attribute,0);roundSound(r);renderBattle();schedule(afterReveal,1350)}catch(e){console.warn(e)}
+  try{const r=resolveRound(game,attribute,0);sfx('reveal');schedule(()=>roundSound(r),650);renderBattle();schedule(afterReveal,REVEAL_HOLD_MS)}catch(e){console.warn(e)}
 }
 function doSwap(){
   try{reserveSwap(game,0);sfx('swap');renderBattle()}catch(e){console.warn(e)}
@@ -122,8 +214,8 @@ function scheduleCpu(){
     if(game.mode===MODES.tactical&&game.swaps[1]&&game.decks[1].length>1&&strength<.42){
       reserveSwap(game,1);sfx('swap');renderBattle();chosen=chooseCpuAttribute(game.decks[1][0],cards,banned)
     }
-    const r=resolveRound(game,chosen,1);roundSound(r);renderBattle();schedule(afterReveal,1350)
-  },700)
+    const r=resolveRound(game,chosen,1);sfx('reveal');schedule(()=>roundSound(r),650);renderBattle();schedule(afterReveal,REVEAL_HOLD_MS)
+  },CPU_THINK_MS)
 }
 function finish(){
   if(!game)return menu();const out=game.outcome||finishMatch(game),state=out.winner===0?'win':out.winner===1?'loss':'draw';
@@ -176,13 +268,26 @@ function deadlineMarkup(deadline){return deadline?`<span class="deadline">TURN <
 function startDeadline(deadline){if(!deadline)return;const draw=()=>{const el=$('#turnTimer');if(el)el.textContent=Math.max(0,Math.ceil((deadline-Date.now())/1000))};draw();every(draw,250)}
 function netBattle(m){
   screen='online';for(const id of intervals)clearInterval(id);intervals.clear();const legal=m.legal||ATTRIBUTES,disabled=ATTRIBUTES.filter(a=>!legal.includes(a));
-  app.innerHTML=nav()+`<main class="arena"><div class="hud"><span>YOU <b>${m.counts[0]}</b></span><span>ROUND ${m.round}/${m.maxRounds}<small>${m.pot?`STANDOFF POT ${m.pot}`:m.mode.toUpperCase()}</small></span><span><b>${m.counts[1]}</b> RIVAL</span></div><div class="turn-banner ${m.turn?'your-turn':''}">${m.turn?'YOUR MOVE':'RIVAL IS CHOOSING'} ${deadlineMarkup(m.deadline)}</div><section class="table"><div class="player-slot">${card(m.card,{interactive:m.turn,slot:'player',disabledAttrs:disabled})}${m.mode===MODES.tactical?`<button class="swap" id="netSwap" ${!m.turn||!m.swaps?.[0]?'disabled':''}>Reserve swap <b>${m.swaps?.[0]||0}</b></button>`:''}</div><div class="versus"><b>VS</b><span>${m.turn?'PICK AN EDGE':'WAITING'}</span>${m.pot?`<div class="pot">POT × ${m.pot}</div>`:''}</div><div class="opponent-slot">${card(null,{hidden:true,slot:'opponent'})}</div></section><div id="announcer" class="sr-only" aria-live="assertive">${m.turn?'Your move':'Opponent turn'}</div></main>`;bindNav();
+  app.innerHTML=nav()+`<main class="arena choose-phase"><div class="arena-atmosphere"><i></i><i></i><i></i></div>
+    ${battleHud(m.counts[0],m.counts[1],'RIVAL',m.round,m.maxRounds,m.mode,m.pot)}
+    <div class="turn-banner ${m.turn?'your-turn':''}">${m.turn?'YOUR TURN • CHOOSE AN ATTRIBUTE':'RIVAL IS CHOOSING'} ${deadlineMarkup(m.deadline)}</div>
+    <section class="table"><div class="player-slot">${card(m.card,{interactive:m.turn,slot:'player',disabledAttrs:disabled})}${m.mode===MODES.tactical?`<button class="swap" id="netSwap" ${!m.turn||!m.swaps?.[0]?'disabled':''}>Reserve swap <b>${m.swaps?.[0]||0}</b></button>`:''}</div>
+    ${idleVersus(m.turn,m.pot)}
+    <div class="opponent-slot">${card(null,{hidden:true,slot:'opponent'})}</div></section><div id="announcer" class="sr-only" aria-live="assertive">${m.turn?'Your move':'Opponent turn'}</div></main>`;bindNav();
   if(m.turn)document.querySelectorAll('[data-stat]').forEach(b=>b.onclick=()=>{sfx('select');sendWs({type:'action',action:b.dataset.stat})});
   const sw=$('#netSwap');if(sw)sw.onclick=()=>sendWs({type:'swap'});startDeadline(m.deadline)
 }
 function netReveal(m){
-  for(const id of intervals)clearInterval(id);intervals.clear();const cls=m.winner===null?'is-tie':m.winner==='you'?'is-win':'is-loss',status=m.winner===null?'STANDOFF':m.winner==='you'?'YOU WIN':'RIVAL WINS';sfx(m.winner===null?'tie':m.winner==='you'?'win':'lose');
-  app.innerHTML=nav()+`<main class="arena ${cls}"><div class="hud"><span>YOU</span><span>${m.attribute}<small>${m.pot?`STANDOFF POT ${m.pot}`:''}</small></span><span>RIVAL</span></div><div class="turn-banner">${status} — ${m.values[0]} vs ${m.values[1]}</div><section class="table"><div class="player-slot">${card(m.cards[0],{selected:m.attribute,slot:'player'})}</div><div class="versus"><b>${m.values[0]}<i>VS</i>${m.values[1]}</b><span>${m.attribute}</span></div><div class="opponent-slot">${card(m.cards[1],{selected:m.attribute,slot:'opponent'})}</div></section><div id="announcer" class="sr-only" aria-live="assertive">${status}</div></main>`;bindNav()
+  for(const id of intervals)clearInterval(id);intervals.clear();const winner=m.winner===null?null:m.winner==='you'?0:1,cls=winner===null?'is-tie':winner===0?'is-win':'is-loss',status=winner===null?'STANDOFF':winner===0?'YOU WIN':'RIVAL WINS',result={cards:m.cards,values:m.values,attribute:m.attribute,winner};
+  sfx('reveal');schedule(()=>sfx(winner===null?'tie':winner===0?'win':'lose'),650);
+  const counts=m.counts||netState?.counts||['—','—'],round=m.round||netState?.round||'—',maxRounds=m.maxRounds||netState?.maxRounds||24,mode=m.mode||netState?.mode||MODES.tactical;
+  app.innerHTML=nav()+`<main class="arena ${cls} reveal-phase"><div class="arena-atmosphere"><i></i><i></i><i></i></div>
+    ${battleHud(counts[0],counts[1],'RIVAL',round,maxRounds,mode,m.pot||0)}
+    <div class="turn-banner result-banner">${m.attribute.toUpperCase()} LOCKED • ROUND RESOLVED</div>
+    <section class="table"><div class="player-slot">${card(m.cards[0],{selected:m.attribute,slot:'player',outcome:winner===null?'tie':winner===0?'winner':'loser'})}</div>
+    ${duelVersus(result,'RIVAL')}
+    <div class="opponent-slot">${card(m.cards[1],{selected:m.attribute,slot:'opponent',outcome:winner===null?'tie':winner===1?'winner':'loser',reveal:true})}</div></section>
+    <div id="announcer" class="sr-only" aria-live="assertive">${status}</div></main>`;bindNav();animateDuelScores()
 }
 function netGameOver(m){
   const state=m.winner==='you'?'win':m.winner==='draw'?'draw':'loss',title=state==='win'?'Victory':state==='draw'?'Draw':'Defeat';
