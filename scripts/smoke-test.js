@@ -64,6 +64,16 @@ try{
   assert.match(battleTheme.headers.get('content-type')||'',/audio\/mpeg/i);
   assert.ok((await battleTheme.arrayBuffer()).byteLength>3_000_000);
 
+  for(const name of ['tactical','ban-counter','triple','team-tag']){
+    const tutorial=await fetch(`${base}/tutorials/${name}.webp`);
+    assert.equal(tutorial.status,200);
+    assert.equal(tutorial.headers.get('content-type'),'image/webp');
+    const tutorialBytes=Buffer.from(await tutorial.arrayBuffer());
+    assert.ok(tutorialBytes.byteLength>5_000);
+    assert.equal(tutorialBytes.subarray(0,4).toString('ascii'),'RIFF');
+    assert.equal(tutorialBytes.subarray(8,12).toString('ascii'),'WEBP');
+  }
+
   const opponentBack=await fetch(`${base}/ui/opponent-card-back.svg`);
   assert.equal(opponentBack.status,200);
   assert.match(opponentBack.headers.get('content-type')||'',/image\/svg\+xml/i);
@@ -120,7 +130,7 @@ try{
   }
   assert.notEqual(stateA.turn,stateB.turn);
 
-  console.log('Production smoke test passed: HTTP, header logo, audio/video, 221-card manifest, and Team Tag 1v1 room handshake.');
+  console.log('Production smoke test passed: HTTP, tutorial banners, header logo, audio/video, 221-card manifest, and Team Tag 1v1 room handshake.');
 }finally{
   for(const c of [a,b])try{c?.ws?.close()}catch{}
   child.kill('SIGTERM');
