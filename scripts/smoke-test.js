@@ -91,7 +91,8 @@ try{
   a=client();b=client();
   await Promise.all([waitOpen(a.ws),waitOpen(b.ws)]);
 
-  a.ws.send(JSON.stringify({type:'create',mode:'tactical'}));
+  // Even legacy clients requesting Classic are forced onto the single Tactical ruleset.
+  a.ws.send(JSON.stringify({type:'create',mode:'classic'}));
   const room=await take(a,'room');
   assert.match(room.code,/^[A-Z]{4}$/);
   assert.equal(room.mode,'tactical');
