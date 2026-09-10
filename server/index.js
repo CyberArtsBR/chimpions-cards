@@ -111,3 +111,51 @@ function performAction(room,seat,action,timedOut=false){
   room.revealTimer=setTimeout(()=>{room.revealTimer=null;advanceMatch(g);if(g.finished)sendGameOver(room);else armTurn(room)},REVEAL_MS);
   return true
 }
+
+wss.on('connection',ws=>{
+  ws.room=null;ws.seat=null;
+  ws.on('message',raw=>{
+    let m;try{m=JSON.parse(raw)}catch{return send(ws,'error',{message:'Invalid message'})}
+    if(m.type==='create'){
+      if(ws.room)return send(ws,'error',{message:'Leave the current room before creating another.'});
+      let c;do c=roomCode();while(rooms.has(c));
+      const mode=Object.values(MODES).includes(m.mode)?m.mode:MODES.tactical;
+      const room={code:c,mode,players:[ws],game:null,finished:false,createdAt:Date.now(),deadline:null};
+      rooms.set(c,room);ws.room=c;ws.seat=0;send(ws,'room',{code:c,seat:0,mode});scheduleGc(room,WAITING_TTL);return
+    }
+    if(m.type==='join'){
+      if(ws.room)return send(ws,'error',{message:'You are already in a room.'});
+      const c=String(m.code||'').trim().toUpperCase(),room=rooms.get(c);
+      if(!room||room.finished||room.players.length!==1)return send(ws,'error',{message:'Room unavailable'});
+      if(room.players.includes(ws))return send(ws,'error',{message:'You cannot join your own room.'});
+      if(room.gcTimer)clearTimeout(room.gcTimer);room.gcTimer=null;room.players.push(ws);ws.room=c;ws.seat=1;
+      room.game=createMatch(cards,{maxRounds:room.mode===MODES.teamTag?80:24,mode:room.mode,starter:randomInt(2)});
+      peers(room).forEach((p,i)=>send(p,'ready',{code:c,seat:i,mode:room.mode}));armTurn(room);return
+    }
+    const room=rooms.get(ws.room);
+    if(!room||room.finished)return send(ws,'error',{message:'This room is no longer active.'});
+    if(m.type==='ban'){
+      const g=room.game;if(!g||g.finished||g.phase!=='ban')return send(ws,'error',{message:'No ban is available now.'});
+      try{
+        setBan(g,m.attribute,ws.seat);
+        if(room.turnTimer)clearTimeout(room.turnTimer);room.turnTimer=null;room.deadline=null;armTurn(room)
+      }catch(e){send(ws,'error',{message:e.message})}
+      return
+    }
+    if(m.type==='action'){
+      if(!performAction(room,ws.seat,m.action,false))send(ws,'error',{message:'That action is not legal right now.'});
+      return
+    }
+    if(m.type==='swap'){
+      const g=room.game;if(!g||g.finished||g.phase!=='choose'||g.active!==ws.seat)return send(ws,'error',{message:'Reserve swap is not available now.'});
+      try{reserveSwap(g,ws.seat);broadcastState(room)}catch(e){send(ws,'error',{message:e.message})}
+      return
+    }
+  });
+  ws.on('close',()=>{
+    const code=ws.room,room=rooms.get(code);if(!room)return;
+    if(room.players.length>1)destroyRoom(code,'Opponent disconnected. Room closed.');else destroyRoom(code)
+  });
+});
+
+server.listen(process.env.PORT||3000,()=>console.log(`CHIMPIONS Arena on http://localhost:${process.env.PORT||3000}`));
