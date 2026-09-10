@@ -215,7 +215,7 @@ function statMarkup(c,a,interactive,selected,disabled){
   </${tag}>`
 }
 function card(c,{hidden=false,interactive=false,selected=null,slot='player',disabledAttrs=[],outcome=null,reveal=false}={}){
-  if(hidden)return `<article class="card premium-card back ${slot}"><div class="tcg-shell" aria-hidden="true"></div><div class="back-design reference-card-back"><div class="back-neon-title"><span>The Chimpions</span><b>Arena</b></div><div class="back-target" aria-hidden="true"><i></i><i></i><strong>◇</strong></div><div class="back-caption"><b>OPPONENT CARD</b><i></i><small>Revealed After Lock-in</small></div></div></article>`;
+  if(hidden)return `<article class="card premium-card back ${slot}"><div class="tcg-shell" aria-hidden="true"></div><div class="opponent-card-art" aria-hidden="true"><img src="/ui/opponent-card-back.webp" alt="" draggable="false"></div></article>`;
   if(!c)return '';
   const affinity=topAttribute(c),peak=c.stats[affinity],outcomeClass=outcome?` round-${outcome}`:'';
   return `<article class="card premium-card ${slot} affinity-${attrSlug(affinity)}${outcomeClass} ${reveal?'just-revealed':''}" data-card-tilt>
@@ -387,14 +387,14 @@ function finish(){
   const copy=state==='win'?'Your reads converted into captures.':state==='loss'?'The CPU controlled the final card advantage.':'Neither side could break the final balance.';
   if(state==='win')sfx('final');else sfx(state==='loss'?'lose':'tie');
   const particles=state==='win'?`<div class="particles" aria-hidden="true">${Array.from({length:26},(_,i)=>`<i style="--i:${i}"></i>`).join('')}</div>`:'';
-  app.innerHTML=nav()+`<main class="result match-result ${state}">${particles}<div class="result-aura"></div>
+  app.innerHTML=nav()+`<main class="result match-result result-video-screen ${state}">${backgroundVideo('battle')}${particles}<div class="result-aura"></div>
     <div class="result-kicker">MATCH COMPLETE • ${game.mode.toUpperCase()}</div>
     <div class="trophy">${crest()}</div><h1>${title}</h1><p>${copy}</p>
     <div class="final-scoreboard"><div><small>YOU</small><b>${out.counts[0]}</b></div><i>FINAL</i><div><small>CPU</small><b>${out.counts[1]}</b></div></div>
     <div class="result-metrics"><span><b>${out.roundsPlayed}</b> rounds</span><span><b>${margin}</b> card margin</span><span><b>${out.history.filter(h=>h.winner===null).length}</b> standoffs</span></div>
     <div class="result-actions"><button class="primary" id="again">Rematch</button><button data-go="menu">Main menu</button></div>
   </main>`;
-  $('#again').onclick=()=>start(game.mode,cpuDifficulty);bindNav()
+  $('#again').onclick=()=>start(game.mode,cpuDifficulty);bindNav();syncArenaVideo()
 }
 
 function gallery(){
