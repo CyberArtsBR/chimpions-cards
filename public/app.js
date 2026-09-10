@@ -588,3 +588,8 @@ function netGameOver(m){
     <div class="final-scoreboard"><div><small>YOU</small><b>${m.counts[0]}</b></div><i>FINAL</i><div><small>RIVAL</small><b>${m.counts[1]}</b></div></div>
     <div class="result-actions"><button class="primary" id="onlineAgain">New room</button><button data-go="menu">Main menu</button></div></main>`;$('#onlineAgain').onclick=()=>online(m.mode||selectedMode);bindNav();syncArenaVideo()
 }
+
+fetch('/data/chimpions.json')
+  .then(r=>{if(!r.ok)throw new Error(`HTTP ${r.status}`);return r.json()})
+  .then(d=>{manifest=d;cards=decorateCards(d.cards||[]);menu()})
+  .catch(()=>app.innerHTML='<main class="result loss"><h1>Collection unavailable</h1><p>Refresh to try again.</p></main>');
