@@ -1,11 +1,15 @@
 /* Chimpions Arena tutorial source hardening.
    The legacy app still names the old WebPs. This layer immediately remaps every
-   tutorial image to the verified vector master so a corrupt raster can never
-   produce a black tutorial panel. */
+   tutorial image to a self-contained scalable vector master, preventing broken
+   WebP decodes from ever producing a black tutorial panel. */
 (() => {
   'use strict';
-  const names=['tactical','ban-counter','triple','team-tag'];
-  const map=new Map(names.map(name=>[`/tutorials/${name}.webp`,`/tutorials/${name}.svg`]));
+  const map=new Map([
+    ['/tutorials/tactical.webp','/tutorials/tactical.svg'],
+    ['/tutorials/ban-counter.webp','/tutorials/ban-counter.svg'],
+    ['/tutorials/triple.webp','/tutorials/triple.svg'],
+    ['/tutorials/team-tag.webp','/tutorials/team-tag.svg']
+  ]);
   const vectorFor=src=>{
     try{return map.get(new URL(src,location.href).pathname)||null}catch{return null}
   };
@@ -32,5 +36,7 @@
   });
   observer.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['src']});
   scan(document);
-  for(const name of names){const img=new Image();img.decoding='async';img.src=`/tutorials/${name}.svg`}
+  for(const src of map.values()){
+    const img=new Image();img.decoding='async';img.src=src;
+  }
 })();
