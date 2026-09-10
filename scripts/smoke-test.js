@@ -59,6 +59,11 @@ try{
   assert.match(battleTheme.headers.get('content-type')||'',/audio\/mpeg/i);
   assert.ok((await battleTheme.arrayBuffer()).byteLength>3_000_000);
 
+  const opponentBack=await fetch(`${base}/ui/opponent-card-back.webp`);
+  assert.equal(opponentBack.status,200);
+  assert.equal(opponentBack.headers.get('content-type'),'image/webp');
+  assert.ok((await opponentBack.arrayBuffer()).byteLength>4_000);
+
   const video=await fetch(`${base}/video/crowd-and-flag.mp4`,{method:'HEAD'});
   assert.equal(video.status,200);
   assert.equal(video.headers.get('content-type'),'video/mp4');
