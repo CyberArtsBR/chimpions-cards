@@ -869,3 +869,170 @@ body:has(.arena-home) .hero-card-showcase{
     padding:7px 4vw!important;
   }
 }
+
+
+/* ===== Team Tag 2v2 + four-mode cleanup ===== */
+.mode-grid{
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+}
+.mode-team-tag .turn-banner{
+  border-color:#79f0c266!important;
+}
+.mode-team-tag .mode-battle-panel{
+  border-color:#6fe0c83d;
+  background:linear-gradient(90deg,#07151acc,#10222bcc,#0a1820cc);
+}
+.mode-team-tag .team-tag-table{
+  width:min(100%,1500px)!important;
+  grid-template-columns:minmax(420px,1fr) minmax(150px,210px) minmax(420px,1fr)!important;
+  gap:14px!important;
+}
+.mode-team-tag .team-slot{
+  padding-bottom:0!important;
+}
+.mode-team-tag .team-pair{
+  width:100%;
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
+  align-items:center;
+  justify-items:center;
+}
+.mode-team-tag .team-tag-table .team-pair .card{
+  width:min(100%,240px,calc((100cqh - 20px)*.66))!important;
+  height:min(470px,calc(100cqh - 20px))!important;
+  max-height:470px!important;
+  margin:0!important;
+}
+.mode-team-tag .team-tag-table .team-pair .card-inner{
+  inset:7px!important;
+  padding:5px!important;
+  grid-template-rows:17px minmax(0,1fr) 29px 145px!important;
+  gap:3px!important;
+}
+.mode-team-tag .team-tag-table .team-pair .card-meta{
+  font-size:8px;
+}
+.mode-team-tag .team-tag-table .team-pair .cardhead h2{
+  font-size:15px!important;
+}
+.mode-team-tag .team-tag-table .team-pair .cardhead small{
+  font-size:8px!important;
+}
+.mode-team-tag .team-tag-table .team-pair .stat{
+  grid-template-columns:15px minmax(0,1fr) auto!important;
+  padding:3px 5px!important;
+  font-size:9px!important;
+}
+.mode-team-tag .team-tag-table .team-pair .stat>b{
+  font-size:11px!important;
+}
+.mode-team-tag .team-tag-versus{
+  max-width:210px;
+}
+.mode-team-tag .team-tag-score{
+  width:100%;
+  display:grid;
+  grid-template-columns:1fr 20px 1fr;
+  align-items:center;
+  gap:5px;
+  margin:7px 0;
+}
+.mode-team-tag .team-tag-score>div{
+  min-width:0;
+  padding:7px 4px;
+  border:1px solid #8fa8bd2d;
+  border-radius:7px;
+  background:#07131fd4;
+  text-align:center;
+}
+.mode-team-tag .team-tag-score small{
+  display:block;
+  color:#89a0b6;
+  font-size:8px;
+  letter-spacing:.11em;
+}
+.mode-team-tag .team-tag-score b{
+  display:block;
+  margin-top:3px;
+  color:#eaf7ff;
+  font-size:15px;
+  font-variant-numeric:tabular-nums;
+}
+.mode-team-tag .team-tag-score>i{
+  color:#91dff1;
+  font-style:normal;
+  font-weight:900;
+  font-size:10px;
+  text-align:center;
+}
+.mode-team-tag .team-tag-ranking{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:4px;
+  width:100%;
+  margin:5px 0 7px;
+}
+.mode-team-tag .team-tag-ranking span{
+  padding:4px 5px;
+  border:1px solid #738aa12e;
+  border-radius:5px;
+  background:#0b1520d4;
+  color:#8da2b5;
+  font-size:8px;
+}
+.mode-team-tag .team-tag-ranking span.top-two{
+  color:#dffdf6;
+  border-color:#73e7ca66;
+  background:#0e2a278c;
+  box-shadow:0 0 12px #69e2c51c;
+}
+.mode-team-tag .team-tag-ranking b{
+  color:#75ead0;
+}
+.mode-team-tag .duel-winner-name{
+  line-height:1.35;
+}
+@media(max-width:1180px){
+  .mode-team-tag .team-tag-table{
+    grid-template-columns:minmax(350px,1fr) 150px minmax(350px,1fr)!important;
+    gap:8px!important;
+  }
+  .mode-team-tag .team-pair{gap:6px}
+  .mode-team-tag .team-tag-table .team-pair .card{
+    width:min(100%,205px)!important;
+  }
+}
+@media(max-width:980px){
+  .mode-team-tag .team-tag-table{
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;
+    grid-template-rows:86px minmax(0,1fr)!important;
+    grid-template-areas:'versus versus' 'player opponent'!important;
+    gap:8px!important;
+  }
+  .mode-team-tag .team-pair{gap:4px}
+  .mode-team-tag .team-tag-table .team-pair .card{
+    width:min(100%,160px)!important;
+    height:min(390px,calc(100cqh - 112px))!important;
+  }
+  .mode-team-tag .team-tag-table .team-pair .card-inner{
+    grid-template-rows:15px minmax(0,1fr) 24px 132px!important;
+  }
+  .mode-team-tag .team-tag-versus{
+    max-width:360px;
+  }
+  .mode-team-tag .team-tag-ranking{
+    display:none;
+  }
+}
+@media(max-width:620px){
+  .mode-grid{
+    grid-template-columns:1fr 1fr!important;
+  }
+  .mode-team-tag .team-tag-table .team-pair .card{
+    width:min(100%,138px)!important;
+  }
+  .mode-team-tag .team-tag-table .team-pair .card-meta{
+    display:none;
+  }
+}

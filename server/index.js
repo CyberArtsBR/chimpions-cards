@@ -6,8 +6,8 @@ import {randomInt} from 'node:crypto';
 import {WebSocketServer,WebSocket} from 'ws';
 import {fileURLToPath} from 'node:url';
 import {
-  ATTRIBUTES,MODES,decorateCards,createMatch,legalAttributes,legalWagers,resolveRound,advanceMatch,
-  reserveSwap,setBan,chooseCpuAttribute,chooseCpuAttributes,chooseCpuBan,chooseCpuWager
+  ATTRIBUTES,MODES,decorateCards,createMatch,legalAttributes,resolveRound,advanceMatch,
+  reserveSwap,setBan,chooseCpuAttribute,chooseCpuAttributes,chooseCpuBan,chooseCpuTeamAttribute
 } from '../public/engine.js';
 
 const root=fileURLToPath(new URL('../public/',import.meta.url));
@@ -53,13 +53,12 @@ function destroyRoom(code,reason=null){const room=rooms.get(code);if(!room)retur
 function scheduleGc(room,ms){if(room.gcTimer)clearTimeout(room.gcTimer);room.gcTimer=setTimeout(()=>destroyRoom(room.code),ms)}
 
 function publicState(room,seat){
-  const g=room.game,actor=g.phase==='ban'?1-g.active:g.active;
+  const g=room.game,actor=g.phase==='ban'?1-g.active:g.active,teamTag=g.mode===MODES.teamTag;
   return {
-    card:g.decks[seat][0],counts:[g.decks[seat].length,g.decks[1-seat].length],round:g.round,maxRounds:g.maxRounds,
+    card:g.decks[seat][0],cards:teamTag?g.decks[seat].slice(0,2):undefined,
+    counts:[g.decks[seat].length,g.decks[1-seat].length],round:g.round,maxRounds:g.maxRounds,
     pot:g.pot.length*2,turn:actor===seat,phase:g.phase,mode:g.mode,lastAttribute:g.lastAttribute,
-    bannedAttribute:g.bannedAttribute,legal:legalAttributes(g),legalWagers:legalWagers(g),
-    swaps:[g.swaps[seat],g.swaps[1-seat]],eliminated:[g.eliminated[seat].length,g.eliminated[1-seat].length],
-    chaos:g.chaos,deadline:room.deadline
+    bannedAttribute:g.bannedAttribute,legal:legalAttributes(g),swaps:[g.swaps[seat],g.swaps[1-seat]],deadline:room.deadline
   }
 }
 function broadcastState(room){peers(room).forEach((p,i)=>send(p,'state',publicState(room,i)))}
@@ -77,13 +76,11 @@ function armTurn(room){
       return armTurn(room)
     }
     const seat=current.active,card=current.decks[seat][0];
-    let action,wager=1;
+    let action;
     if(current.mode===MODES.triple)action=chooseCpuAttributes(current,card,cards,3);
-    else{
-      action=chooseCpuAttribute(card,cards,null,{game:current});
-      if(current.mode===MODES.wager)wager=chooseCpuWager(current,card,cards)
-    }
-    performAction(room,seat,action,true,wager)
+    else if(current.mode===MODES.teamTag)action=chooseCpuTeamAttribute(current,seat,cards);
+    else action=chooseCpuAttribute(card,cards,null,{game:current});
+    performAction(room,seat,action,true)
   },TURN_MS+25)
 }
 function sendGameOver(room){
@@ -91,25 +88,27 @@ function sendGameOver(room){
   peers(room).forEach((p,i)=>send(p,'gameover',{winner:out.winner===null?'draw':out.winner===i?'you':'them',counts:[out.counts[i],out.counts[1-i]],mode:g.mode,roundsPlayed:out.roundsPlayed}));
   scheduleGc(room,FINISHED_TTL)
 }
-function performAction(room,seat,action,timedOut=false,wager=1){
+function performAction(room,seat,action,timedOut=false){
   const g=room?.game;if(!g||room.finished||g.finished||g.phase!=='choose')return false;
   if(seat!==g.active)return false;
   if(room.turnTimer)clearTimeout(room.turnTimer);room.turnTimer=null;room.deadline=null;
-  let result;try{result=resolveRound(g,action,seat,{wager})}catch{return false}
+  let result;try{result=resolveRound(g,action,seat)}catch{return false}
   peers(room).forEach((p,i)=>{
     const comparisons=(result.comparisons||[]).map(c=>({...c,values:i===0?c.values:[c.values[1],c.values[0]],winner:c.winner===null?null:(c.winner===i?0:1)}));
+    const teamCards=result.teamCards?(i===0?result.teamCards:[result.teamCards[1],result.teamCards[0]]):undefined;
+    const teamValues=result.teamValues?(i===0?result.teamValues:[result.teamValues[1],result.teamValues[0]]):undefined;
+    const rankings=result.rankings?result.rankings.map(x=>({...x,seat:i===0?x.seat:1-x.seat})).sort((a,b)=>b.value-a.value):undefined;
     send(p,'reveal',{
       countsBefore:i===0?result.countsBefore:[result.countsBefore[1],result.countsBefore[0]],
-      capturedCount:result.capturedCount,capturedCards:result.capturedCards,eliminatedCards:result.eliminatedCards,
+      capturedCount:result.capturedCount,capturedCards:result.capturedCards,
       cards:i===0?result.cards:[result.cards[1],result.cards[0]],values:i===0?result.values:[result.values[1],result.values[0]],
-      attribute:result.attribute,attributes:result.attributes,comparisons,stake:result.stake,modifier:result.modifier,bannedAttribute:result.bannedAttribute,
+      teamCards,teamValues,rankings,
+      attribute:result.attribute,attributes:result.attributes,comparisons,bannedAttribute:result.bannedAttribute,
       winner:result.winner===null?null:(result.winner===i?'you':'them'),pot:g.pot.length*2,timedOut:timedOut&&seat===i,
       counts:[g.decks[i].length,g.decks[1-i].length],round:g.round,maxRounds:g.maxRounds,mode:g.mode
     })
   });
-  room.revealTimer=setTimeout(()=>{
-    room.revealTimer=null;advanceMatch(g);if(g.finished)sendGameOver(room);else armTurn(room)
-  },REVEAL_MS);
+  room.revealTimer=setTimeout(()=>{room.revealTimer=null;advanceMatch(g);if(g.finished)sendGameOver(room);else armTurn(room)},REVEAL_MS);
   return true
 }
 
@@ -130,7 +129,7 @@ wss.on('connection',ws=>{
       if(!room||room.finished||room.players.length!==1)return send(ws,'error',{message:'Room unavailable'});
       if(room.players.includes(ws))return send(ws,'error',{message:'You cannot join your own room.'});
       if(room.gcTimer)clearTimeout(room.gcTimer);room.gcTimer=null;room.players.push(ws);ws.room=c;ws.seat=1;
-      room.game=createMatch(cards,{maxRounds:room.mode===MODES.survivor?36:24,mode:room.mode,starter:randomInt(2)});
+      room.game=createMatch(cards,{maxRounds:room.mode===MODES.teamTag?80:24,mode:room.mode,starter:randomInt(2)});
       peers(room).forEach((p,i)=>send(p,'ready',{code:c,seat:i,mode:room.mode}));armTurn(room);return
     }
     const room=rooms.get(ws.room);
@@ -144,7 +143,7 @@ wss.on('connection',ws=>{
       return
     }
     if(m.type==='action'){
-      if(!performAction(room,ws.seat,m.action,false,Number(m.wager)||1))send(ws,'error',{message:'That action is not legal right now.'});
+      if(!performAction(room,ws.seat,m.action,false))send(ws,'error',{message:'That action is not legal right now.'});
       return
     }
     if(m.type==='swap'){

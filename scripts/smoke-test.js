@@ -96,11 +96,11 @@ try{
   a=client();b=client();
   await Promise.all([waitOpen(a.ws),waitOpen(b.ws)]);
 
-  // A new Arena mode must survive the complete room handshake.
-  a.ws.send(JSON.stringify({type:'create',mode:'wager'}));
+  // Team Tag must survive the complete room handshake.
+  a.ws.send(JSON.stringify({type:'create',mode:'team-tag'}));
   const room=await take(a,'room');
   assert.match(room.code,/^[A-Z]{4}$/);
-  assert.equal(room.mode,'wager');
+  assert.equal(room.mode,'team-tag');
 
   b.ws.send(JSON.stringify({type:'join',code:room.code}));
   const [readyA,readyB]=await Promise.all([take(a,'ready'),take(b,'ready')]);
@@ -109,18 +109,18 @@ try{
 
   const [stateA,stateB]=await Promise.all([take(a,'state'),take(b,'state')]);
   for(const state of [stateA,stateB]){
-    assert.equal(state.mode,'wager');
+    assert.equal(state.mode,'team-tag');
     assert.equal(typeof state.turn,'boolean');
     assert.ok(state.card?.name);
-    assert.deepEqual(state.counts,[8,8]);
+    assert.deepEqual(state.counts,[20,20]);
     assert.ok(Array.isArray(state.legal)&&state.legal.length>0);
-    assert.deepEqual(state.legalWagers,[1,2,3]);
+    assert.ok(Array.isArray(state.cards)&&state.cards.length===2);
     assert.equal(state.phase,'choose');
     assert.ok(state.deadline>Date.now());
   }
   assert.notEqual(stateA.turn,stateB.turn);
 
-  console.log('Production smoke test passed: HTTP, header logo, audio/video, 221-card manifest, and six-mode 1v1 room handshake.');
+  console.log('Production smoke test passed: HTTP, header logo, audio/video, 221-card manifest, and Team Tag 1v1 room handshake.');
 }finally{
   for(const c of [a,b])try{c?.ws?.close()}catch{}
   child.kill('SIGTERM');
