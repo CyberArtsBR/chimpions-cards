@@ -214,3 +214,101 @@ body:has(.arena) .arena-video video{
   body:has(.arena) .arena{padding-top:64px;}
   .arena .table .card .art img{object-fit:cover!important;object-position:center!important;}
 }
+
+
+/* Result video continuity: keep the same live arena video behind the final score. */
+body:has(.result-video-screen){
+  overflow:hidden;
+}
+body:has(.result-video-screen) #app{
+  position:relative;
+  height:100dvh;
+  min-height:100dvh;
+}
+body:has(.result-video-screen) .battle-topbar{
+  position:absolute!important;
+  inset:0 0 auto 0;
+  z-index:100;
+  flex:none!important;
+  height:68px!important;
+  padding:10px 22px!important;
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+  backdrop-filter:none!important;
+  pointer-events:none;
+}
+body:has(.result-video-screen) .battle-topbar .brand,
+body:has(.result-video-screen) .battle-topbar nav,
+body:has(.result-video-screen) .battle-topbar button{
+  pointer-events:auto;
+}
+.result-video-screen{
+  position:relative!important;
+  width:100%!important;
+  max-width:none!important;
+  height:100dvh!important;
+  min-height:100dvh!important;
+  margin:0!important;
+  padding:74px 6vw 28px!important;
+  overflow:hidden!important;
+  isolation:isolate;
+  background:transparent!important;
+}
+.result-video-screen>.arena-video{
+  position:absolute!important;
+  inset:0!important;
+  z-index:0!important;
+  width:100%!important;
+  height:100%!important;
+}
+.result-video-screen>.arena-video video{
+  position:absolute!important;
+  inset:0!important;
+  width:100%!important;
+  height:100%!important;
+  object-fit:cover!important;
+  object-position:center!important;
+  transform:none!important;
+  filter:brightness(.62) saturate(1.08) contrast(1.08)!important;
+  opacity:1!important;
+}
+.result-video-screen>.arena-video .arena-video-color{
+  background:
+    linear-gradient(90deg,#0207128a 0%,transparent 34%,transparent 66%,#14071b7a 100%),
+    linear-gradient(180deg,#02061161 0%,transparent 30%,#02061177 100%)!important;
+}
+.result-video-screen>.arena-video .arena-video-vignette{
+  background:radial-gradient(ellipse at center,transparent 34%,#01040ca3 100%)!important;
+  box-shadow:none!important;
+}
+.result-video-screen>*:not(.arena-video){
+  position:relative;
+  z-index:2;
+}
+.result-video-screen .result-aura{
+  position:absolute!important;
+  z-index:1!important;
+  opacity:.55;
+  mix-blend-mode:screen;
+}
+.result-video-screen .particles{
+  z-index:3!important;
+}
+.result-video-screen .final-scoreboard{
+  background:linear-gradient(180deg,#14243ad9,#07111fdb)!important;
+  backdrop-filter:blur(9px);
+}
+.result-video-screen .result-metrics span,
+.result-video-screen .result-actions button{
+  backdrop-filter:blur(7px);
+}
+@media(max-width:980px){
+  body:has(.result-video-screen) .battle-topbar{
+    height:58px!important;
+    padding:7px 10px!important;
+  }
+  .result-video-screen{
+    padding:64px 18px 22px!important;
+  }
+}
