@@ -151,9 +151,9 @@ test('capture presentation includes the standoff pot and immutable pre-duel coun
   const c=(id,power)=>({...fixtures[id],stats:{...fixtures[id].stats,Power:power}});
   g.decks=[[c(0,60),c(1,80),c(2,60)],[c(3,60),c(4,40),c(5,60)]];
   const tie=resolveRound(g,'Power',0);
-  assert.equal(tie.capturedCount,0);assert.deepEqual(tie.countsBefore,[3,3]);
+  assert.equal(tie.capturedCount,0);assert.equal(tie.capturedCards.length,0);assert.deepEqual(tie.countsBefore,[3,3]);
   advanceMatch(g);
   const win=resolveRound(g,'Power',0);
-  assert.equal(win.capturedCount,4);assert.deepEqual(win.countsBefore,[2,2]);
+  assert.equal(win.capturedCount,4);assert.equal(win.capturedCards.length,4);assert.equal(win.capturedCards.length,win.capturedCount);assert.deepEqual(win.countsBefore,[2,2]);
   assert.deepEqual(g.decks.map(d=>d.length),[5,1]);assert.deepEqual(tie.countsBefore,[3,3]);
 });
