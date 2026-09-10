@@ -11,7 +11,7 @@ const prefs={
   sfx:localStorage.getItem('chimpions:sfx')!=='off',
   music:localStorage.getItem('chimpions:music')!=='off',
   fast:localStorage.getItem('chimpions:pace')==='fast',
-  difficulty:localStorage.getItem('chimpions:difficulty')||CPU_DIFFICULTIES.standard,
+  difficulty:CPU_DIFFICULTIES.expert,
   motion:localStorage.getItem('chimpions:motion')||'auto'
 };
 let audioCtx=null,battleTrack=null,battleMusicUnlockArmed=false,roundAdvanceTimer=null,cpuDifficulty=prefs.difficulty,battleIntroPending=false;
@@ -168,8 +168,8 @@ function bindCardTilt(){
   })
 }
 function preload(url){if(!url)return;const i=new Image();i.src=url}
-function currentMode(){return document.querySelector('[name="mode"]:checked')?.value||MODES.tactical}
-function currentDifficulty(){return document.querySelector('#cpuDifficulty')?.value||prefs.difficulty}
+function currentMode(){return MODES.tactical}
+function currentDifficulty(){return CPU_DIFFICULTIES.expert}
 const ATTRIBUTE_UI={
   Power:{short:'PWR',path:'M13 2 5 13h6l-1 9 9-13h-6z'},
   Agility:{short:'AGI',path:'M4 12h14m-5-5 5 5-5 5M5 7h4M5 17h4'},
@@ -191,16 +191,16 @@ function heroCards(){
 
 function menu(){
   screen='menu';
-  app.innerHTML=nav()+`<main class="hero arena-home">${backgroundVideo('home')}<div class="hero-copy"><div class="eyebrow">${cards.length} CHIMPIONS. ONE ARENA.</div><h1 class="premium-title">The Chimpions<span>Arena</span></h1><p class="hero-tagline">Read your rival. Play your strongest edge.</p><div class="play-panel"><div class="panel-heading"><span>ENTER THE ARENA</span><small>Choose your rules</small></div><fieldset class="mode-picker"><legend class="sr-only">Ruleset</legend><label><input type="radio" name="mode" value="classic"><span><b>Classic</b><small>Win the duel. Keep the initiative.</small></span></label><label><input type="radio" name="mode" value="tactical" checked><span><b>Tactical</b><small>Alternating turns. One reserve swap.</small></span></label></fieldset><label class="difficulty-picker"><span>CPU difficulty</span><select id="cpuDifficulty"><option value="easy">Easy</option><option value="standard">Standard</option><option value="expert">Expert</option></select></label><div class="actions"><button class="primary" id="quick">Play vs CPU <span aria-hidden="true">↗</span></button><button class="secondary" id="onlineBtn">Private 1v1</button></div><small class="play-note">Six attributes. Every decision counts.</small></div></div><div class="hero-card-showcase" aria-hidden="true"><div class="home-card-wall">${heroCards()}</div><div class="hero-glow"></div><div class="showcase-caption">BATTLE-READY CHIMPIONS • FULL ATTRIBUTES</div></div></main>${footer()}`;
-  const diff=$('#cpuDifficulty');if(diff){diff.value=prefs.difficulty;diff.onchange=()=>{prefs.difficulty=diff.value;localStorage.setItem('chimpions:difficulty',prefs.difficulty)}}
-  $('#quick').onclick=()=>{ensureAudio();sfx('ui');start(currentMode(),currentDifficulty())};$('#onlineBtn').onclick=()=>{ensureAudio();sfx('ui');cleanup();online(currentMode())};bindNav()
+  app.innerHTML=nav()+`<main class="hero arena-home">${backgroundVideo('home')}<div class="hero-copy"><div class="eyebrow">${cards.length} CHIMPIONS. ONE ARENA.</div><h1 class="premium-title">The Chimpions<span>Arena</span></h1><p class="hero-tagline">Read your rival. Play your strongest edge.</p><div class="play-panel"><div class="panel-heading"><span>ENTER THE ARENA</span><small>Competitive rules locked</small></div><div class="locked-rules" aria-label="Game rules"><span><b>Tactical Duel</b><small>Alternating turns. One reserve swap. Last-used attribute locks for the next round.</small></span><span><b>Expert CPU</b><small>Maximum difficulty. The CPU always uses its strongest available decision logic.</small></span></div><div class="actions"><button class="primary" id="quick">Play vs Expert CPU <span aria-hidden="true">↗</span></button><button class="secondary" id="onlineBtn">Private 1v1</button></div><small class="play-note">One competitive ruleset. Six attributes. Every decision counts.</small></div></div><div class="hero-card-showcase" aria-hidden="true"><div class="home-card-wall">${heroCards()}</div><div class="hero-glow"></div><div class="showcase-caption">BATTLE-READY CHIMPIONS • FULL ATTRIBUTES</div></div></main>${footer()}`;
+  prefs.difficulty=CPU_DIFFICULTIES.expert;localStorage.setItem('chimpions:difficulty',CPU_DIFFICULTIES.expert);
+  $('#quick').onclick=()=>{ensureAudio();sfx('ui');start()};$('#onlineBtn').onclick=()=>{ensureAudio();sfx('ui');cleanup();online()};bindNav()
 }
 
-function start(mode=MODES.tactical,difficulty=prefs.difficulty){
-  cleanup();screen='battle';ensureAudio();cpuDifficulty=Object.values(CPU_DIFFICULTIES).includes(difficulty)?difficulty:CPU_DIFFICULTIES.standard;
-  prefs.difficulty=cpuDifficulty;localStorage.setItem('chimpions:difficulty',cpuDifficulty);
+function start(){
+  cleanup();screen='battle';ensureAudio();cpuDifficulty=CPU_DIFFICULTIES.expert;
+  prefs.difficulty=CPU_DIFFICULTIES.expert;localStorage.setItem('chimpions:difficulty',CPU_DIFFICULTIES.expert);
   const starter=Math.random()<.5?0:1;
-  game=createMatch(cards,{deckSize:6,maxRounds:24,mode,starter});
+  game=createMatch(cards,{deckSize:6,maxRounds:24,mode:MODES.tactical,starter});
   battleIntroPending=true;renderBattle();startBattleMusic({restart:true});sfx('ui');if(game.active===1)scheduleCpu();
 }
 function statMarkup(c,a,interactive,selected,disabled){
@@ -389,7 +389,7 @@ function finish(){
     <div class="result-metrics"><span><b>${out.roundsPlayed}</b> rounds</span><span><b>${margin}</b> card margin</span><span><b>${out.history.filter(h=>h.winner===null).length}</b> standoffs</span></div>
     <div class="result-actions"><button class="primary" id="again">Rematch</button><button data-go="menu">Main menu</button></div>
   </main>`;
-  $('#again').onclick=()=>start(game.mode,cpuDifficulty);bindNav();syncArenaVideo()
+  $('#again').onclick=()=>start();bindNav();syncArenaVideo()
 }
 
 function gallery(){
@@ -417,15 +417,15 @@ function showDetail(id){
 
 function help(){app.innerHTML=nav()+`<main class="copy"><small>CHIMPIONS ARENA • QUICK GUIDE</small><h1>How to play</h1><ol><li>Study your visible Chimpion and choose one of its six game attributes. Keyboard players can use <b>1–6</b>.</li><li>The rival card reveals. The higher value wins both cards; the duel score remains visible long enough to read, or you can press <b>Next round</b>.</li><li>A tie creates a <b>Standoff Pot</b>. Those cards stay in the middle until the next decisive duel.</li><li><b>Classic:</b> the round winner keeps initiative and chooses the next attribute.</li><li><b>Tactical:</b> the chooser alternates every round. The attribute used last round becomes locked, and each side receives one Reserve Swap. Press <b>S</b> to prepare the swap.</li><li><b>Fast Pace</b> shortens CPU reveal time. Motion can be Auto, Reduced, or Full. Music softens during duel highlights.</li><li>If the match ends with an unresolved pot, tied cards return to their original owners before final scoring.</li></ol><p>Game stats use an equal deterministic budget. They are gameplay attributes — not rarity, market value, or official collection rankings.</p>${officialLinks(false)}<button class="primary" id="go">Enter Chimpions Arena</button></main>`;$('#go').onclick=()=>start();bindNav()}
 
-function online(defaultMode=MODES.tactical){
+function online(){
   cleanup();screen='online';
-  app.innerHTML=nav()+`<main class="copy online-copy"><small>YOUR FRIEND. YOUR RIVAL.</small><h1>Challenge a friend</h1><p>Create a four-letter room code or enter one shared by a friend. A disconnected player ends the room; stalled turns auto-resolve after the visible timer.</p><fieldset class="mode-picker compact"><legend>Room rules</legend><label><input type="radio" name="mode" value="classic" ${defaultMode==='classic'?'checked':''}><span><b>Classic</b></span></label><label><input type="radio" name="mode" value="tactical" ${defaultMode==='tactical'?'checked':''}><span><b>Tactical</b></span></label></fieldset><div class="room"><button class="primary" id="create">Create room</button><input id="code" maxlength="4" autocomplete="off" placeholder="CODE" aria-label="Room code"><button id="join">Join</button></div><div id="status" aria-live="polite">Connecting…</div></main>`;bindNav();
+  app.innerHTML=nav()+`<main class="copy online-copy"><small>YOUR FRIEND. YOUR RIVAL.</small><h1>Challenge a friend</h1><p>Create a four-letter room code or enter one shared by a friend. All rooms use Tactical rules. A disconnected player ends the room; stalled turns auto-resolve after the visible timer.</p><div class="online-rules-lock"><b>Tactical 1v1</b><span>Alternating turns • reserve swap • last-used attribute lock</span></div><div class="room"><button class="primary" id="create">Create room</button><input id="code" maxlength="4" autocomplete="off" placeholder="CODE" aria-label="Room code"><button id="join">Join</button></div><div id="status" aria-live="polite">Connecting…</div></main>`;bindNav();
   socket=new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/room`);
   socket.onopen=()=>setStatus('Connected — create or join a room.');
   socket.onerror=()=>setStatus('Connection problem. Check the server and try again.');
   socket.onclose=()=>{if(screen==='online'){stopBattleMusic(true);if($('#status'))setStatus('Connection closed. Return to the menu to reconnect.')}};
   socket.onmessage=e=>{let m;try{m=JSON.parse(e.data)}catch{return}handleNet(m)};
-  $('#create').onclick=()=>sendWs({type:'create',mode:currentMode()});$('#join').onclick=()=>sendWs({type:'join',code:$('#code').value.trim().toUpperCase()});
+  $('#create').onclick=()=>sendWs({type:'create',mode:MODES.tactical});$('#join').onclick=()=>sendWs({type:'join',code:$('#code').value.trim().toUpperCase()});
 }
 function setStatus(t){const el=$('#status');if(el)el.textContent=t}
 function sendWs(payload){if(!socket||socket.readyState!==WebSocket.OPEN)return setStatus('Still connecting — try again in a moment.');socket.send(JSON.stringify(payload))}
