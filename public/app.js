@@ -6,7 +6,7 @@ import {
 const $=s=>document.querySelector(s),app=$('#app');
 let cards=[],manifest=null,game=null,screen='menu',epoch=0,socket=null,netState=null;
 const timers=new Set(),intervals=new Set();
-const REVEAL_HOLD_NORMAL_MS=2400,REVEAL_HOLD_FAST_MS=1200,CPU_THINK_MS=900;
+const REVEAL_HOLD_NORMAL_MS=3200,REVEAL_HOLD_FAST_MS=1800,CPU_THINK_MS=900;
 const prefs={
   sfx:localStorage.getItem('chimpions:sfx')!=='off',
   music:localStorage.getItem('chimpions:music')!=='off',
@@ -149,15 +149,16 @@ function backgroundVideo(kind='battle'){
     <div class="arena-video-vignette"></div>
   </div>`
 }
+function crest(){return `<svg class="arena-crest" viewBox="0 0 100 110" aria-hidden="true"><path d="M10 10 50 2 90 10V60L75 85 50 106 25 85 10 60Z" fill="none" stroke="currentColor" stroke-width="3"/><path d="M20 23 35 18 50 28 65 18 80 23 76 65 50 88 24 65Z" fill="currentColor" opacity=".16"/><path d="M26 40 34 30 43 36H57L66 30 74 40V61L63 73H37L26 61Z" fill="none" stroke="currentColor" stroke-width="3"/><path d="M35 47H43M57 47H65M43 62H57" stroke="currentColor" stroke-width="4"/><path d="M37 12 50 20 63 12" fill="none" stroke="currentColor" stroke-width="2"/></svg>`}
+function settingsMarkup(){return `<button class="settings-open" aria-haspopup="dialog">Settings</button><dialog id="settingsDialog" aria-labelledby="settingsTitle"><button class="close" aria-label="Close settings">×</button><small class="eyebrow">MAKE IT YOUR ARENA</small><h2 id="settingsTitle">Settings</h2><div class="settings-options"><div><span>Music</span><button class="audio-toggle" id="musicToggle" aria-label="Toggle music"></button></div><div><span>Sound effects</span><button class="audio-toggle" id="sfxToggle" aria-label="Toggle sound effects"></button></div><div><span>Animation</span><button class="motion-toggle" id="motionToggle" aria-label="Cycle motion preference"></button></div>${screen==='battle'?'<div><span>Round pace</span><button class="pace-toggle" id="paceToggle" aria-label="Toggle reveal pace"></button></div>':''}</div><p>Motion follows your device in Auto mode. Reduced motion uses a still arena background.</p></dialog>`}
 function nav(){
-  const pace=screen==='battle'?'<button class="pace-toggle" id="paceToggle" aria-label="Toggle reveal pace"></button>':'';
-  if(screen==='battle'||screen==='online'){
-    return `<div class="battle-topbar"><button class="brand compact" data-go="menu" aria-label="Chimpions Arena home"><b>CHIMPIONS</b><span>ARENA</span></button><div class="battle-topbar-actions">${pace}<button class="motion-toggle" id="motionToggle" aria-label="Cycle motion preference"></button><button class="audio-toggle" id="musicToggle" aria-label="Toggle music"></button><button class="audio-toggle" id="sfxToggle" aria-label="Toggle sound effects"></button><button class="battle-menu-btn" data-go="menu">Main menu</button></div></div>`
-  }
-  return `<header><button class="brand" data-go="menu" aria-label="Chimpions Arena home"><b>CHIMPIONS</b><span>ARENA</span></button>${officialLinks(true)}<nav><button data-go="gallery">Collection</button><button data-go="help">How to play</button><button class="motion-toggle" id="motionToggle" aria-label="Cycle motion preference"></button><button class="audio-toggle" id="musicToggle" aria-label="Toggle music"></button><button class="audio-toggle" id="sfxToggle" aria-label="Toggle sound effects"></button></nav></header>`
+  const battle=screen==='battle'||screen==='online';
+  return `<${battle?'div class="battle-topbar"':'header'}><button class="brand" data-go="menu" aria-label="Chimpions Arena home"><b>CHIMPIONS</b><span>ATTRIBUTE ARENA</span></button><nav>${battle?'<button data-go="menu">Main menu</button>':'<button data-go="menu">Play</button><button data-go="gallery">Collection</button><button data-go="help">How to play</button>'}${settingsMarkup()}</nav></${battle?'div':'header'}>`
 }
+function footer(){return `<footer class="site-footer"><span>THE CHIMPIONS ARENA <small>Collect your edge. Own the duel.</small></span>${officialLinks(true)}</footer>`}
 function bindNav(){
   document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));
+  const settings=$('#settingsDialog');document.querySelector('.settings-open')?.addEventListener('click',()=>settings.showModal());settings?.querySelector('.close').addEventListener('click',()=>settings.close());
   const s=$('#sfxToggle'),m=$('#musicToggle'),p=$('#paceToggle'),r=$('#motionToggle');if(s)s.onclick=()=>toggleAudio('sfx');if(m)m.onclick=()=>toggleAudio('music');if(p)p.onclick=togglePace;if(r)r.onclick=toggleMotion;applyMotionPreference();renderAudioButtons();bindImages();bindCardTilt();
 }
 function bindImages(){document.querySelectorAll('img').forEach(img=>{img.addEventListener('error',()=>{if(img.src!==placeholder)img.src=placeholder},{once:true})})}
@@ -202,21 +203,7 @@ function heroCards(){
 
 function menu(){
   screen='menu';
-  const v=manifest?validateCollection(manifest):null;
-  const collectionNote=v?`<div class="collection-status"><span class="live-dot"></span><b>${v.count} playable Chimpions</b><small>Official snapshot • CPU + private 1v1</small></div>`:'';
-  app.innerHTML=nav()+`<main class="hero arena-home">${backgroundVideo('home')}<div class="hero-copy">
-    <div class="hero-logo-lockup"><div class="hero-logo-title">The Chimpions</div><div class="hero-logo-arena">Arena</div><div class="hero-logo-subtitle">Animated card battles from the Chimpions universe</div></div>
-    <div class="eyebrow">${cards.length} PLAYABLE CHIMPIONS • STRATEGIC CARD DUELS</div>
-    <h1>Read the card.<br><em>Own the arena.</em></h1>
-    <p>Pick the best edge, reveal the rival, and control the standoff pot in a clean tactical showdown.</p>
-    <fieldset class="mode-picker compact-home"><legend>Ruleset</legend>
-      <label><input type="radio" name="mode" value="classic"><span><b>Classic</b><small>Winner keeps initiative and chooses next.</small></span></label>
-      <label><input type="radio" name="mode" value="tactical" checked><span><b>Tactical ★</b><small>Alternating chooser • last-used stat locked • 1 Reserve Swap each.</small></span></label>
-    </fieldset>
-    <div class="home-controls-row"><label class="difficulty-picker"><span>CPU difficulty</span><select id="cpuDifficulty"><option value="easy">Easy</option><option value="standard">Standard</option><option value="expert">Expert</option></select><small>Fair AI only changes decision quality — never hidden information.</small></label><div class="actions"><button class="primary" id="quick">Play vs CPU</button><button id="onlineBtn">Private 1v1</button></div></div>
-    <div class="features compact-features"><span>Fast / Normal pace</span><span>Keyboard 1–6 + S</span><span>Music + ducking</span></div>
-    ${collectionNote}
-  </div><div class="hero-card-stack" aria-hidden="true">${heroCards()}<div class="hero-glow"></div></div></main>`;
+  app.innerHTML=nav()+`<main class="hero arena-home">${backgroundVideo('home')}<div class="hero-copy"><div class="eyebrow">${cards.length} CHIMPIONS. ONE ARENA.</div><h1 class="premium-title">The Chimpions<span>Arena</span></h1><p class="hero-tagline">Read your rival. Play your strongest edge.</p><div class="play-panel"><div class="panel-heading"><span>ENTER THE ARENA</span><small>Choose your rules</small></div><fieldset class="mode-picker"><legend class="sr-only">Ruleset</legend><label><input type="radio" name="mode" value="classic"><span><b>Classic</b><small>Win the duel. Keep the initiative.</small></span></label><label><input type="radio" name="mode" value="tactical" checked><span><b>Tactical</b><small>Alternating turns. One reserve swap.</small></span></label></fieldset><label class="difficulty-picker"><span>CPU difficulty</span><select id="cpuDifficulty"><option value="easy">Easy</option><option value="standard">Standard</option><option value="expert">Expert</option></select></label><div class="actions"><button class="primary" id="quick">Play vs CPU <span aria-hidden="true">↗</span></button><button class="secondary" id="onlineBtn">Private 1v1</button></div><small class="play-note">Six attributes. Every decision counts.</small></div></div><div class="hero-card-stack" aria-hidden="true">${heroCards()}<div class="hero-glow"></div><div class="showcase-caption">MEET YOUR NEXT CHAMPION</div></div></main>${footer()}`;
   const diff=$('#cpuDifficulty');if(diff){diff.value=prefs.difficulty;diff.onchange=()=>{prefs.difficulty=diff.value;localStorage.setItem('chimpions:difficulty',prefs.difficulty)}}
   $('#quick').onclick=()=>{ensureAudio();sfx('ui');start(currentMode(),currentDifficulty())};$('#onlineBtn').onclick=()=>{ensureAudio();sfx('ui');cleanup();online(currentMode())};bindNav()
 }
@@ -235,13 +222,13 @@ function statMarkup(c,a,interactive,selected,disabled){
   </${tag}>`
 }
 function card(c,{hidden=false,interactive=false,selected=null,slot='player',disabledAttrs=[],outcome=null,reveal=false}={}){
-  if(hidden)return `<article class="card back ${slot}"><div class="back-rings"></div><div class="sigil">C</div><b>CHIMPION // CLASSIFIED</b><small>Opponent card reveals after lock-in</small></article>`;
+  if(hidden)return `<article class="card premium-card back ${slot}"><div class="tcg-shell" aria-hidden="true"></div><div class="back-design"><div class="back-orbit"></div>${crest()}<strong>THE CHIMPIONS<span>ARENA</span></strong><div class="back-caption"><b>Opponent card</b><small>Revealed after lock-in</small></div></div></article>`;
   if(!c)return '';
   const affinity=topAttribute(c),peak=c.stats[affinity],outcomeClass=outcome?` round-${outcome}`:'';
   return `<article class="card premium-card ${slot} affinity-${attrSlug(affinity)}${outcomeClass} ${reveal?'just-revealed':''}" data-card-tilt>
-    <div class="tcg-shell" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <div class="tcg-shell" aria-hidden="true"></div>
     <div class="card-foil"></div><div class="card-glint"></div><div class="card-inner">
-      <div class="art"><img src="${c.image}" alt="${escapeHtml(c.name)}" loading="eager"><span class="tribe-badge">${escapeHtml(c.tribe||'Unaligned')}</span><em class="edge-badge">${attrIcon(affinity)} ${affinity} ${peak}</em></div>
+      <div class="card-meta"><span>${escapeHtml(c.tribe||'Unaligned')}</span><em>${attrIcon(affinity)} ${peak}</em></div><div class="art"><img src="${c.image}" alt="${escapeHtml(c.name)}" loading="eager"></div>
       <div class="cardhead"><small>#${String(c.id).padStart(3,'0')}</small><h2>${escapeHtml(c.name)}</h2><i>${ATTRIBUTE_UI[affinity].short}</i></div>
       <div class="stats">${ATTRIBUTES.map(a=>statMarkup(c,a,interactive,selected,disabledAttrs.includes(a))).join('')}</div>
     </div>
@@ -293,7 +280,7 @@ function continueRound(){
 }
 function bindBattleKeys({canChoose=false,reveal=false,online=false}={}){
   document.onkeydown=e=>{
-    const tag=document.activeElement?.tagName;if(['INPUT','SELECT','TEXTAREA'].includes(tag))return;
+    const tag=document.activeElement?.tagName;if(['INPUT','SELECT','TEXTAREA'].includes(tag)||document.querySelector('dialog[open]'))return;
     if(reveal&&!online&&(e.key==='Enter'||e.key===' ')){e.preventDefault();$('#continueRound')?.click();return}
     if(!canChoose)return;
     if(/^[1-6]$/.test(e.key)){
@@ -302,7 +289,7 @@ function bindBattleKeys({canChoose=false,reveal=false,online=false}={}){
     }
     if(e.key.toLowerCase()==='s'){const swap=online?$('#netSwap'):$('#swap');if(swap&&!swap.disabled){e.preventDefault();swap.click()}}
   };
-  schedule(()=>{const target=reveal&&!online?$('#continueRound'):canChoose?document.querySelector('[data-stat]:not(:disabled)'):null;target?.focus()},35)
+  schedule(()=>{const target=reveal&&!online?$('#continueRound'):canChoose?document.querySelector('[data-stat]:not(:disabled)'):null;target?.focus({preventScroll:true})},35)
 }
 function idleVersus(canChoose,pot=0){
   return `<div class="versus idle-versus"><div class="arena-core"><span>VS</span></div><b>${canChoose?'CHOOSE YOUR EDGE':'OPPONENT THINKING'}</b>${pot?`<div class="pot">POT × ${pot}</div>`:''}</div>`
@@ -313,9 +300,9 @@ function duelVersus(result,rightLabel='CPU'){
     <div class="duel-energy" aria-hidden="true"><i></i><i></i><i></i></div>
     <div class="duel-attribute"><i>${attrIcon(result.attribute)}</i><span>${result.attribute} DUEL</span></div>
     <div class="duel-scoreline">
-      <div class="score-plate score-player"><small>YOU</small><b class="score-value" data-target="${result.values[0]}">0</b></div>
+      <div class="score-plate score-player"><small>YOU</small><b class="score-value" data-target="${result.values[0]}">${result.values[0]}</b></div>
       <i class="duel-vs">VS</i>
-      <div class="score-plate score-rival"><small>${rightLabel}</small><b class="score-value" data-target="${result.values[1]}">0</b></div>
+      <div class="score-plate score-rival"><small>${rightLabel}</small><b class="score-value" data-target="${result.values[1]}">${result.values[1]}</b></div>
     </div>
     <div class="duel-verdict">${verdict}</div>
     <div class="duel-winner-name">${winner?escapeHtml(winner.name):'THE POT GROWS'}</div>
@@ -325,17 +312,24 @@ function duelVersus(result,rightLabel='CPU'){
 function battleIntroFx(rightLabel='CPU'){
   return `<div class="battle-intro-fx" aria-hidden="true"><div class="intro-scanline"></div><div class="intro-mark"><small>THE CHIMPIONS ARENA</small><b>DUEL INITIALIZED</b><span>YOU <i>VS</i> ${rightLabel}</span></div></div>`
 }
+function animateCaptureCounts(result,counts){
+  if(!result?.countsBefore)return;
+  const nodes=[...document.querySelectorAll('.hud-count b')];
+  nodes.forEach((node,i)=>node.textContent=result.countsBefore[i]);
+  const arena=document.querySelector('.arena');
+  schedule(()=>{if(!arena?.isConnected)return;nodes.forEach((node,i)=>{node.textContent=counts[i];node.parentElement.classList.add('count-updated')})},motionReduced()?0:Math.min(1750,revealHoldMs()-150))
+}
 function animateDuelScores(){
   const els=[...document.querySelectorAll('.score-value')];if(!els.length)return;
-  const start=performance.now(),duration=720;
-  const tick=now=>{const p=Math.min(1,(now-start)/duration),ease=1-Math.pow(1-p,3);els.forEach(el=>el.textContent=Math.round(Number(el.dataset.target||0)*ease));if(p<1)requestAnimationFrame(tick)};
+  const start=performance.now(),duration=motionReduced()?0:450;
+  const tick=now=>{const p=duration?Math.min(1,(now-start)/duration):1,ease=1-Math.pow(1-p,3);els.forEach(el=>el.textContent=Math.round(Number(el.dataset.target||0)*ease));if(p<1)requestAnimationFrame(tick)};
   requestAnimationFrame(tick)
 }
 function captureFx(result){
   if(!result)return '';
   if(result.winner===null)return '<div class="capture-fx standoff-fx"><i></i><i></i><i></i></div>';
   const dir=result.winner===0?'to-player':'to-rival';
-  return `<div class="capture-fx ${dir}">${Array.from({length:14},(_,i)=>`<i style="--i:${i}"></i>`).join('')}</div>`
+  return `<div class="capture-cards ${dir}" aria-hidden="true">${result.cards.map((c,i)=>`<div class="flying-card" style="--i:${i}"><img src="${c.image}" alt=""></div>`).join('')}<span>+${result.capturedCount||2} cards</span></div>`
 }
 function renderBattle(){
   if(!game)return menu();if(game.finished)return finish();
@@ -362,7 +356,7 @@ function renderBattle(){
     ${reveal?'<div class="round-actions"><button class="primary continue-round" id="continueRound">Next round</button><small>Auto-continues in '+(revealHoldMs()/1000).toFixed(1)+'s · '+(prefs.fast?'Fast':'Normal')+' pace</small></div>':''}
     <div id="announcer" class="sr-only" aria-live="polite">${status}</div>
   </main>`;
-  bindNav();if(intro)battleIntroPending=false;if(reveal)animateDuelScores();
+  bindNav();if(intro)battleIntroPending=false;if(reveal){animateDuelScores();animateCaptureCounts(result,game.decks.map(d=>d.length))};
   if(canChoose)document.querySelectorAll('[data-stat]').forEach(b=>b.onclick=()=>choose(b.dataset.stat));
   const sw=$('#swap');if(sw)bindSwapPreview(sw,doSwap);
   const next=$('#continueRound');if(next)next.onclick=continueRound;bindBattleKeys({canChoose,reveal,online:false});
@@ -402,7 +396,7 @@ function finish(){
   const particles=state==='win'?`<div class="particles" aria-hidden="true">${Array.from({length:26},(_,i)=>`<i style="--i:${i}"></i>`).join('')}</div>`:'';
   app.innerHTML=nav()+`<main class="result match-result ${state}">${particles}<div class="result-aura"></div>
     <div class="result-kicker">MATCH COMPLETE • ${game.mode.toUpperCase()}</div>
-    <div class="trophy">${state==='win'?'♛':state==='loss'?'◇':'='}</div><h1>${title}</h1><p>${copy}</p>
+    <div class="trophy">${crest()}</div><h1>${title}</h1><p>${copy}</p>
     <div class="final-scoreboard"><div><small>YOU</small><b>${out.counts[0]}</b></div><i>FINAL</i><div><small>CPU</small><b>${out.counts[1]}</b></div></div>
     <div class="result-metrics"><span><b>${out.roundsPlayed}</b> rounds</span><span><b>${margin}</b> card margin</span><span><b>${out.history.filter(h=>h.winner===null).length}</b> standoffs</span></div>
     <div class="result-actions"><button class="primary" id="again">Rematch</button><button data-go="menu">Main menu</button></div>
@@ -412,11 +406,12 @@ function finish(){
 
 function gallery(){
   screen='gallery';const tribes=[...new Set(cards.map(c=>c.tribe||'Unaligned'))].sort();
-  app.innerHTML=nav()+`<main class="collection"><div class="collection-title"><div><small>COLLECTION & GAME STATS • ${cards.length} PLAYABLE</small><h1>Meet the Chimpions</h1><p class="collection-source">The official gallery API currently exposes ${cards.length} playable Chimpions. Game stats are balanced attributes, not NFT rarity rankings.</p></div><div class="filters"><input id="search" placeholder="Search name or tribe" aria-label="Search collection"><select id="tribe"><option value="">All tribes</option>${tribes.map(t=>`<option>${escapeHtml(t)}</option>`).join('')}</select><select id="sort"><option value="id">Number</option><option value="name">Name</option>${ATTRIBUTES.map(a=>`<option value="${a}">${a}</option>`).join('')}</select></div></div><div class="grid" id="grid"></div><dialog id="detail"><button class="close" aria-label="Close">×</button><div id="detailBody"></div></dialog></main>`;
+  app.innerHTML=nav()+`<main class="collection"><div class="collection-title"><div><small>COLLECTION & GAME STATS • ${cards.length} PLAYABLE</small><h1>Meet the Chimpions</h1><p class="collection-source">Find your signature Chimpion. Explore six balanced attributes and every tribe.</p></div><div class="filters"><input id="search" placeholder="Search name or tribe" aria-label="Search collection"><select id="tribe" aria-label="Filter by tribe"><option value="">All tribes</option>${tribes.map(t=>`<option>${escapeHtml(t)}</option>`).join('')}</select><select id="sort" aria-label="Sort collection"><option value="id">Number</option><option value="name">Name</option>${ATTRIBUTES.map(a=>`<option value="${a}">${a}</option>`).join('')}</select></div></div><div class="collection-count" id="collectionCount" aria-live="polite"></div><div class="grid" id="grid"></div><dialog id="detail"><button class="close" aria-label="Close">×</button><div id="detailBody"></div></dialog></main>${footer()}`;
   const draw=()=>{
     const q=$('#search').value.toLowerCase(),tribe=$('#tribe').value,sort=$('#sort').value;
     let list=cards.filter(c=>(c.name+' '+(c.tribe||'')).toLowerCase().includes(q)&&(!tribe||c.tribe===tribe));
     list=[...list].sort((a,b)=>sort==='name'?a.name.localeCompare(b.name):ATTRIBUTES.includes(sort)?b.stats[sort]-a.stats[sort]:Number(a.id)-Number(b.id));
+    $('#collectionCount').textContent=`${list.length} Chimpions`;
     $('#grid').innerHTML=list.length?list.map(c=>{const edge=topAttribute(c);return `<button class="tile affinity-${attrSlug(edge)}" data-id="${c.id}">
       <div class="tile-art"><span class="tile-foil"></span><img loading="lazy" src="${c.image}" alt="${escapeHtml(c.name)}"><em>${attrIcon(edge)} ${edge} ${c.stats[edge]}</em></div>
       <div class="tile-head"><small>#${String(c.id).padStart(3,'0')}</small><b>${escapeHtml(c.name)}</b></div><span>${escapeHtml(c.tribe||'Unaligned')}</span>
@@ -425,13 +420,18 @@ function gallery(){
   };
   $('#search').oninput=draw;$('#tribe').onchange=draw;$('#sort').onchange=draw;$('#detail .close').onclick=()=>$('#detail').close();draw();bindNav()
 }
-function showDetail(id){const c=cards.find(x=>String(x.id)===String(id));if(!c)return;$('#detailBody').innerHTML=`<div class="detail-art"><img src="${c.image}" alt="${escapeHtml(c.name)}"></div><div><small>#${String(c.id).padStart(3,'0')} • ${escapeHtml(c.tribe||'Unaligned')}</small><h2>${escapeHtml(c.name)}</h2><div class="detail-stats">${ATTRIBUTES.map(a=>`<div><span>${a}</span><b>${c.stats[a]}</b><i style="--v:${c.stats[a]}%"></i></div>`).join('')}</div></div>`;bindImages();$('#detail').showModal()}
+function showDetail(id){
+  const visible=[...document.querySelectorAll('.tile')].map(t=>t.dataset.id),index=visible.indexOf(String(id)),c=cards.find(x=>String(x.id)===String(id));if(!c)return;
+  const edge=topAttribute(c);
+  $('#detailBody').innerHTML=`<div class="detail-showcase affinity-${attrSlug(edge)}"><div class="detail-art"><img src="${c.image}" alt="${escapeHtml(c.name)}"></div><span>${escapeHtml(c.tribe||'Unaligned')}</span></div><div class="detail-info"><small class="eyebrow">CHIMPION #${String(c.id).padStart(3,'0')}</small><h2>${escapeHtml(c.name)}</h2><p>Strongest edge <b>${edge} · ${c.stats[edge]}</b></p><div class="detail-stats">${ATTRIBUTES.map(a=>`<div class="attr-${attrSlug(a)}"><span>${attrIcon(a)} ${a}</span><b>${c.stats[a]}</b><i style="--v:${c.stats[a]}%"></i></div>`).join('')}</div><div class="detail-navigation"><button id="previousCard" ${index<=0?'disabled':''}>← Previous</button><span>${index+1} / ${visible.length}</span><button id="nextCard" ${index>=visible.length-1?'disabled':''}>Next →</button></div></div>`;
+  $('#previousCard').onclick=()=>showDetail(visible[index-1]);$('#nextCard').onclick=()=>showDetail(visible[index+1]);bindImages();if(!$('#detail').open)$('#detail').showModal()
+}
 
-function help(){app.innerHTML=nav()+`<main class="copy"><small>CHIMPIONS ARENA • QUICK GUIDE</small><h1>How to play</h1><ol><li>Study your visible Chimpion and choose one of its six game attributes. Keyboard players can use <b>1–6</b>.</li><li>The rival card reveals. The higher value wins both cards; the duel score remains visible long enough to read, or you can press <b>Next round</b>.</li><li>A tie creates a <b>Standoff Pot</b>. Those cards stay in the middle until the next decisive duel.</li><li><b>Classic:</b> the round winner keeps initiative and chooses the next attribute.</li><li><b>Tactical:</b> the chooser alternates every round. The attribute used last round becomes locked, and each side receives one Reserve Swap. Press <b>S</b> to prepare the swap.</li><li><b>Fast Pace</b> shortens CPU reveal time. Motion can be Auto, Reduced, or Full. Music automatically ducks under reveal and winner SFX.</li><li>If the match ends with an unresolved pot, tied cards return to their original owners before final scoring.</li></ol><p>Game stats use an equal deterministic budget. They are gameplay attributes — not rarity, market value, or official collection rankings.</p>${officialLinks(false)}<button class="primary" id="go">Enter Chimpions Arena</button></main>`;$('#go').onclick=()=>start();bindNav()}
+function help(){app.innerHTML=nav()+`<main class="copy"><small>CHIMPIONS ARENA • QUICK GUIDE</small><h1>How to play</h1><ol><li>Study your visible Chimpion and choose one of its six game attributes. Keyboard players can use <b>1–6</b>.</li><li>The rival card reveals. The higher value wins both cards; the duel score remains visible long enough to read, or you can press <b>Next round</b>.</li><li>A tie creates a <b>Standoff Pot</b>. Those cards stay in the middle until the next decisive duel.</li><li><b>Classic:</b> the round winner keeps initiative and chooses the next attribute.</li><li><b>Tactical:</b> the chooser alternates every round. The attribute used last round becomes locked, and each side receives one Reserve Swap. Press <b>S</b> to prepare the swap.</li><li><b>Fast Pace</b> shortens CPU reveal time. Motion can be Auto, Reduced, or Full. Music softens during duel highlights.</li><li>If the match ends with an unresolved pot, tied cards return to their original owners before final scoring.</li></ol><p>Game stats use an equal deterministic budget. They are gameplay attributes — not rarity, market value, or official collection rankings.</p>${officialLinks(false)}<button class="primary" id="go">Enter Chimpions Arena</button></main>`;$('#go').onclick=()=>start();bindNav()}
 
 function online(defaultMode=MODES.tactical){
   cleanup();screen='online';
-  app.innerHTML=nav()+`<main class="copy online-copy"><small>SERVER-AUTHORITATIVE PRIVATE ROOM</small><h1>Challenge a friend</h1><p>Create a four-letter room code or enter one shared by a friend. A disconnected player ends the room; stalled turns auto-resolve after the visible timer.</p><fieldset class="mode-picker compact"><legend>Room rules</legend><label><input type="radio" name="mode" value="classic" ${defaultMode==='classic'?'checked':''}><span><b>Classic</b></span></label><label><input type="radio" name="mode" value="tactical" ${defaultMode==='tactical'?'checked':''}><span><b>Tactical</b></span></label></fieldset><div class="room"><button class="primary" id="create">Create room</button><input id="code" maxlength="4" autocomplete="off" placeholder="CODE" aria-label="Room code"><button id="join">Join</button></div><div id="status" aria-live="polite">Connecting…</div></main>`;bindNav();
+  app.innerHTML=nav()+`<main class="copy online-copy"><small>YOUR FRIEND. YOUR RIVAL.</small><h1>Challenge a friend</h1><p>Create a four-letter room code or enter one shared by a friend. A disconnected player ends the room; stalled turns auto-resolve after the visible timer.</p><fieldset class="mode-picker compact"><legend>Room rules</legend><label><input type="radio" name="mode" value="classic" ${defaultMode==='classic'?'checked':''}><span><b>Classic</b></span></label><label><input type="radio" name="mode" value="tactical" ${defaultMode==='tactical'?'checked':''}><span><b>Tactical</b></span></label></fieldset><div class="room"><button class="primary" id="create">Create room</button><input id="code" maxlength="4" autocomplete="off" placeholder="CODE" aria-label="Room code"><button id="join">Join</button></div><div id="status" aria-live="polite">Connecting…</div></main>`;bindNav();
   socket=new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/room`);
   socket.onopen=()=>setStatus('Connected — create or join a room.');
   socket.onerror=()=>setStatus('Connection problem. Check the server and try again.');
@@ -466,7 +466,7 @@ function netBattle(m){
   const sw=$('#netSwap');if(sw)bindSwapPreview(sw,()=>sendWs({type:'swap'}));bindBattleKeys({canChoose:m.turn,reveal:false,online:true});startDeadline(m.deadline)
 }
 function netReveal(m){
-  for(const id of intervals)clearInterval(id);intervals.clear();const winner=m.winner===null?null:m.winner==='you'?0:1,cls=winner===null?'is-tie':winner===0?'is-win':'is-loss',status=winner===null?'STANDOFF':winner===0?'YOU WIN':'RIVAL WINS',result={cards:m.cards,values:m.values,attribute:m.attribute,winner};
+  for(const id of intervals)clearInterval(id);intervals.clear();const winner=m.winner===null?null:m.winner==='you'?0:1,cls=winner===null?'is-tie':winner===0?'is-win':'is-loss',status=winner===null?'STANDOFF':winner===0?'YOU WIN':'RIVAL WINS',result={cards:m.cards,values:m.values,attribute:m.attribute,winner,countsBefore:m.countsBefore,capturedCount:m.capturedCount};
   sfx('reveal');schedule(()=>sfx(winner===null?'tie':winner===0?'win':'lose'),650);
   const counts=m.counts||netState?.counts||['—','—'],round=m.round||netState?.round||'—',maxRounds=m.maxRounds||netState?.maxRounds||24,mode=m.mode||netState?.mode||MODES.tactical;
   app.innerHTML=nav()+`<main class="arena ${cls} reveal-phase">${backgroundVideo('battle')}<div class="arena-atmosphere"><i></i><i></i><i></i></div>
@@ -476,14 +476,14 @@ function netReveal(m){
     ${duelVersus(result,'RIVAL')}
     <div class="opponent-slot">${card(m.cards[1],{selected:m.attribute,slot:'opponent',outcome:winner===null?'tie':winner===1?'winner':'loser',reveal:true})}</div></section>
     ${captureFx(result)}
-    <div id="announcer" class="sr-only" aria-live="polite">${status}</div></main>`;bindNav();animateDuelScores();bindBattleKeys({canChoose:false,reveal:true,online:true})
+    <div id="announcer" class="sr-only" aria-live="polite">${status}</div></main>`;bindNav();animateDuelScores();animateCaptureCounts(result,counts);bindBattleKeys({canChoose:false,reveal:true,online:true})
 }
 function netGameOver(m){
   stopBattleMusic(true);
   const state=m.winner==='you'?'win':m.winner==='draw'?'draw':'loss',title=state==='win'?'Victory':state==='draw'?'Draw':'Defeat',margin=Math.abs(m.counts[0]-m.counts[1]);
   if(state==='win')sfx('final');else sfx(state==='draw'?'tie':'lose');
   app.innerHTML=nav()+`<main class="result match-result ${state}"><div class="result-aura"></div><div class="result-kicker">PRIVATE 1V1 • MATCH COMPLETE</div>
-    <div class="trophy">${state==='win'?'♛':state==='draw'?'=':'◇'}</div><h1>${title}</h1><p>The room resolved with a final card margin of ${margin}.</p>
+    <div class="trophy">${crest()}</div><h1>${title}</h1><p>The room resolved with a final card margin of ${margin}.</p>
     <div class="final-scoreboard"><div><small>YOU</small><b>${m.counts[0]}</b></div><i>FINAL</i><div><small>RIVAL</small><b>${m.counts[1]}</b></div></div>
     <div class="result-actions"><button class="primary" id="onlineAgain">New room</button><button data-go="menu">Main menu</button></div></main>`;$('#onlineAgain').onclick=()=>online(m.mode||MODES.tactical);bindNav()
 }

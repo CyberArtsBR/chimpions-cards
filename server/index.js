@@ -81,6 +81,7 @@ function performAction(room,seat,attribute,timedOut=false){
   if(room.turnTimer)clearTimeout(room.turnTimer);room.turnTimer=null;room.deadline=null;
   let result;try{result=resolveRound(g,attribute,seat)}catch{return false}
   peers(room).forEach((p,i)=>send(p,'reveal',{
+    countsBefore:i===0?result.countsBefore:[result.countsBefore[1],result.countsBefore[0]],capturedCount:result.capturedCount,
     cards:i===0?result.cards:[result.cards[1],result.cards[0]],values:i===0?result.values:[result.values[1],result.values[0]],attribute,
     winner:result.winner===null?null:(result.winner===i?'you':'them'),pot:g.pot.length*2,timedOut:timedOut&&seat===i,
     counts:[g.decks[i].length,g.decks[1-i].length],round:g.round,maxRounds:g.maxRounds,mode:g.mode

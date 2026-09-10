@@ -145,3 +145,15 @@ test('invalid CPU difficulty and rng are rejected',()=>{
   assert.throws(()=>chooseCpuAttribute(fixtures[0],fixtures,null,{difficulty:'cheat'}),/Invalid CPU difficulty/);
   assert.throws(()=>chooseCpuAttribute(fixtures[0],fixtures,null,{difficulty:CPU_DIFFICULTIES.easy,rng:1}),/rng/);
 });
+
+test('capture presentation includes the standoff pot and immutable pre-duel counts',()=>{
+  const g=createMatch(fixtures,{starter:0,mode:MODES.classic,rng:deterministic});
+  const c=(id,power)=>({...fixtures[id],stats:{...fixtures[id].stats,Power:power}});
+  g.decks=[[c(0,60),c(1,80),c(2,60)],[c(3,60),c(4,40),c(5,60)]];
+  const tie=resolveRound(g,'Power',0);
+  assert.equal(tie.capturedCount,0);assert.deepEqual(tie.countsBefore,[3,3]);
+  advanceMatch(g);
+  const win=resolveRound(g,'Power',0);
+  assert.equal(win.capturedCount,4);assert.deepEqual(win.countsBefore,[2,2]);
+  assert.deepEqual(g.decks.map(d=>d.length),[5,1]);assert.deepEqual(tie.countsBefore,[3,3]);
+});
