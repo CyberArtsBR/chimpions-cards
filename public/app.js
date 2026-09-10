@@ -73,6 +73,8 @@ function armChiptuneUnlock(kind){
 }
 function startChiptune(kind='menu'){
   if(!prefs.music)return;
+  if(kind==='menu'&&screen!=='menu')return;
+  if(kind==='result'&&!document.querySelector('.match-result'))return;
   stopBattleMusic(false);
   if(!audioCtx||audioCtx.state!=='running'){armChiptuneUnlock(kind);return}
   if(chiptuneTimer&&chiptuneKind===kind)return;
