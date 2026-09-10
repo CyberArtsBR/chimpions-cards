@@ -153,7 +153,7 @@ function crest(){return `<svg class="arena-crest" viewBox="0 0 100 110" aria-hid
 function settingsMarkup(){return `<button class="settings-open" aria-haspopup="dialog">Settings</button><dialog id="settingsDialog" aria-labelledby="settingsTitle"><button class="close" aria-label="Close settings">×</button><small class="eyebrow">MAKE IT YOUR ARENA</small><h2 id="settingsTitle">Settings</h2><div class="settings-options"><div><span>Music</span><button class="audio-toggle" id="musicToggle" aria-label="Toggle music"></button></div><div><span>Sound effects</span><button class="audio-toggle" id="sfxToggle" aria-label="Toggle sound effects"></button></div><div><span>Animation</span><button class="motion-toggle" id="motionToggle" aria-label="Cycle motion preference"></button></div>${screen==='battle'?'<div><span>Round pace</span><button class="pace-toggle" id="paceToggle" aria-label="Toggle reveal pace"></button></div>':''}</div><p>Motion follows your device in Auto mode. Reduced motion uses a still arena background.</p></dialog>`}
 function nav(){
   const battle=screen==='battle'||screen==='online';
-  return `<${battle?'div class="battle-topbar"':'header'}><button class="brand" data-go="menu" aria-label="Chimpions Arena home"><b>CHIMPIONS</b><span>ATTRIBUTE ARENA</span></button><nav>${battle?'<button data-go="menu">Main menu</button>':'<button data-go="menu">Play</button><button data-go="gallery">Collection</button><button data-go="help">How to play</button>'}${settingsMarkup()}</nav></${battle?'div':'header'}>`
+  return `<${battle?'div class="battle-topbar"':'header'}><button class="brand" data-go="menu" aria-label="Chimpions Arena home"><b>CHIMPIONS</b><span>ARENA</span></button><nav>${battle?'<button data-go="menu">Main menu</button>':'<button data-go="menu">Play</button><button data-go="gallery">Collection</button><button data-go="help">How to play</button>'}${settingsMarkup()}</nav></${battle?'div':'header'}>`
 }
 function footer(){return `<footer class="site-footer"><span>THE CHIMPIONS ARENA <small>Collect your edge. Own the duel.</small></span>${officialLinks(true)}</footer>`}
 function bindNav(){
@@ -329,7 +329,7 @@ function captureFx(result){
   if(!result)return '';
   if(result.winner===null)return '<div class="capture-fx standoff-fx"><i></i><i></i><i></i></div>';
   const dir=result.winner===0?'to-player':'to-rival';
-  return `<div class="capture-cards ${dir}" aria-hidden="true">${result.cards.map((c,i)=>`<div class="flying-card" style="--i:${i}"><img src="${c.image}" alt=""></div>`).join('')}<span>+${result.capturedCount||2} cards</span></div>`
+  return `<div class="capture-cards ${dir}" aria-hidden="true">${(result.capturedCards?.length?result.capturedCards:result.cards).map((c,i)=>`<div class="flying-card" style="--i:${i}"><img src="${c.image}" alt=""></div>`).join('')}<span>+${result.capturedCount||2} cards</span></div>`
 }
 function renderBattle(){
   if(!game)return menu();if(game.finished)return finish();
@@ -466,7 +466,7 @@ function netBattle(m){
   const sw=$('#netSwap');if(sw)bindSwapPreview(sw,()=>sendWs({type:'swap'}));bindBattleKeys({canChoose:m.turn,reveal:false,online:true});startDeadline(m.deadline)
 }
 function netReveal(m){
-  for(const id of intervals)clearInterval(id);intervals.clear();const winner=m.winner===null?null:m.winner==='you'?0:1,cls=winner===null?'is-tie':winner===0?'is-win':'is-loss',status=winner===null?'STANDOFF':winner===0?'YOU WIN':'RIVAL WINS',result={cards:m.cards,values:m.values,attribute:m.attribute,winner,countsBefore:m.countsBefore,capturedCount:m.capturedCount};
+  for(const id of intervals)clearInterval(id);intervals.clear();const winner=m.winner===null?null:m.winner==='you'?0:1,cls=winner===null?'is-tie':winner===0?'is-win':'is-loss',status=winner===null?'STANDOFF':winner===0?'YOU WIN':'RIVAL WINS',result={cards:m.cards,capturedCards:m.capturedCards,values:m.values,attribute:m.attribute,winner,countsBefore:m.countsBefore,capturedCount:m.capturedCount};
   sfx('reveal');schedule(()=>sfx(winner===null?'tie':winner===0?'win':'lose'),650);
   const counts=m.counts||netState?.counts||['—','—'],round=m.round||netState?.round||'—',maxRounds=m.maxRounds||netState?.maxRounds||24,mode=m.mode||netState?.mode||MODES.tactical;
   app.innerHTML=nav()+`<main class="arena ${cls} reveal-phase">${backgroundVideo('battle')}<div class="arena-atmosphere"><i></i><i></i><i></i></div>

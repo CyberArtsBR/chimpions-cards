@@ -48,7 +48,7 @@ try{
 
   const health=await fetch(`${base}/healthz`);
   assert.equal(health.status,200);
-  assert.deepEqual(await health.json(),{ok:true,service:'chimpions-attribute-arena'});
+  assert.deepEqual(await health.json(),{ok:true,service:'chimpions-arena'});
 
   const home=await fetch(base);
   assert.equal(home.status,200);

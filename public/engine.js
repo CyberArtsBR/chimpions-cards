@@ -117,7 +117,7 @@ export function resolveRound(game,attribute,seat){
   if(!game.decks[0][0]||!game.decks[1][0])return finishMatch(game);
 
   const countsBefore=game.decks.map(d=>d.length);
-  let capturedCount=0;
+  let capturedCount=0,capturedCards=[];
   const drawn=[game.decks[0].shift(),game.decks[1].shift()];
   const values=drawn.map(c=>c.stats[attribute]);
   let winner=null;
@@ -126,6 +126,7 @@ export function resolveRound(game,attribute,seat){
   }else{
     winner=values[0]>values[1]?0:1;
     const loot=[...drawn,...game.pot.flat()];
+    capturedCards=loot;
     capturedCount=loot.length;
     game.pot=[];
     game.decks[winner].push(...loot);
@@ -136,7 +137,7 @@ export function resolveRound(game,attribute,seat){
 
   game.lastAttribute=attribute;
   game.phase='reveal';
-  game.result={cards:drawn,values,winner,attribute,chooser,countsBefore,capturedCount};
+  game.result={cards:drawn,capturedCards,values,winner,attribute,chooser,countsBefore,capturedCount};
   game.history.push({round:game.round,attribute,values,winner,chooser,potPairs:game.pot.length});
   return game.result;
 }
