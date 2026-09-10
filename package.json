@@ -4,7 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build:ui": "node scripts/build-ui-assets.js",
+    "postinstall": "npm run build:ui",
+    "predev": "npm run build:ui",
     "dev": "node server/index.js",
+    "prestart": "npm run build:ui",
     "start": "node server/index.js",
     "test": "node --test",
     "import": "node scripts/import-chimpions.js",
