@@ -43,7 +43,7 @@ const server=http.createServer(async(req,res)=>{
 const manifest=JSON.parse(await readFile(join(root,'data/chimpions.json'),'utf8'));
 const cards=decorateCards(manifest.cards||[]);
 const wss=new WebSocketServer({server,path:'/room'}),rooms=new Map();
-const ALPHABET='ABCDEFGHJKLMNPQRSTUVWXYZ',TURN_MS=20_000,REVEAL_MS=2_200,WAITING_TTL=10*60_000,FINISHED_TTL=90_000;
+const ALPHABET='ABCDEFGHJKLMNPQRSTUVWXYZ',TURN_MS=20_000,REVEAL_MS=3_700,WAITING_TTL=10*60_000,FINISHED_TTL=90_000;
 
 function roomCode(){return Array.from({length:4},()=>ALPHABET[randomInt(ALPHABET.length)]).join('')}
 function send(ws,type,data={}){if(ws?.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type,...data}))}
