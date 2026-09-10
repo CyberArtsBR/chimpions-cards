@@ -16,7 +16,7 @@ child.stderr.on('data',d=>stderr+=d);
 function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
 async function waitUntil(fn,{timeout=5000,label='condition'}={}){
   const end=Date.now()+timeout;
-  while(Date.now()<end){if(fn())return;sleep(25);await sleep(25)}
+  while(Date.now()<end){if(fn())return;await sleep(25)}
   throw new Error(`Timed out waiting for ${label}\nstdout:\n${stdout}\nstderr:\n${stderr}`);
 }
 function client(){
@@ -52,7 +52,10 @@ try{
 
   const home=await fetch(base);
   assert.equal(home.status,200);
-  assert.match(await home.text(),/CHIMPIONS/i);
+  const homeHtml=await home.text();
+  assert.match(homeHtml,/CHIMPIONS/i);
+  assert.match(homeHtml,/aaa-polish\.css/);
+  assert.match(homeHtml,/tutorial-source-fix\.js/);
 
   const headerLogo=await fetch(`${base}/ui/logo-header.svg`);
   assert.equal(headerLogo.status,200);
@@ -64,23 +67,36 @@ try{
   assert.match(battleTheme.headers.get('content-type')||'',/audio\/mpeg/i);
   assert.ok((await battleTheme.arrayBuffer()).byteLength>3_000_000);
 
-  for(const name of ['tactical','ban-counter','triple','team-tag']){
-    const tutorial=await fetch(`${base}/tutorials/${name}.webp`);
+  const tutorialTitles={
+    tactical:'TACTICAL',
+    'ban-counter':'BAN &amp; COUNTER',
+    triple:'TRIPLE CLASH',
+    'team-tag':'TEAM TAG 2v2'
+  };
+  for(const [name,title] of Object.entries(tutorialTitles)){
+    const tutorial=await fetch(`${base}/tutorials/${name}.svg`);
     assert.equal(tutorial.status,200);
-    assert.equal(tutorial.headers.get('content-type'),'image/webp');
-    const tutorialBytes=Buffer.from(await tutorial.arrayBuffer());
-    assert.ok(tutorialBytes.byteLength>5_000);
-    assert.equal(tutorialBytes.subarray(0,4).toString('ascii'),'RIFF');
-    assert.equal(tutorialBytes.subarray(8,12).toString('ascii'),'WEBP');
+    assert.match(tutorial.headers.get('content-type')||'',/image\/svg\+xml/i);
+    const svg=await tutorial.text();
+    assert.match(svg,/viewBox="0 0 1254 1254"/);
+    assert.ok(svg.includes(title),`${name} tutorial title missing`);
+    assert.ok(Buffer.byteLength(svg)>5_000,`${name} tutorial unexpectedly small`);
   }
+
+  const sourceFix=await fetch(`${base}/tutorial-source-fix.js`);
+  assert.equal(sourceFix.status,200);
+  assert.match(sourceFix.headers.get('content-type')||'',/(javascript|text\/plain)/i);
+  const sourceFixJs=await sourceFix.text();
+  assert.match(sourceFixJs,/ban-counter\.webp/);
+  assert.match(sourceFixJs,/ban-counter\.svg/);
 
   const opponentBack=await fetch(`${base}/ui/opponent-card-back.svg`);
   assert.equal(opponentBack.status,200);
   assert.match(opponentBack.headers.get('content-type')||'',/image\/svg\+xml/i);
   const opponentBackSvg=await opponentBack.text();
-  assert.match(opponentBackSvg,/viewBox="0 0 1024 1536"/);
-  assert.match(opponentBackSvg,/OPPONENT CARD/);
-  assert.match(opponentBackSvg,/Revealed After Lock-In/);
+  assert.match(opponentBackSvg,/viewBox="0 0 1000 1470"/);
+  assert.match(opponentBackSvg,/OPPONENT CARD/i);
+  assert.match(opponentBackSvg,/REVEALED AFTER LOCK-IN/i);
 
   const video=await fetch(`${base}/video/crowd-and-flag.mp4`,{method:'HEAD'});
   assert.equal(video.status,200);
@@ -106,7 +122,6 @@ try{
   a=client();b=client();
   await Promise.all([waitOpen(a.ws),waitOpen(b.ws)]);
 
-  // Team Tag must survive the complete room handshake.
   a.ws.send(JSON.stringify({type:'create',mode:'team-tag'}));
   const room=await take(a,'room');
   assert.match(room.code,/^[A-Z]{4}$/);
@@ -130,7 +145,7 @@ try{
   }
   assert.notEqual(stateA.turn,stateB.turn);
 
-  console.log('Production smoke test passed: HTTP, tutorial banners, header logo, audio/video, 221-card manifest, and Team Tag 1v1 room handshake.');
+  console.log('Production smoke test passed: AAA shell, vector tutorials, premium opponent back, audio/video, 221-card manifest, and Team Tag 1v1 room handshake.');
 }finally{
   for(const c of [a,b])try{c?.ws?.close()}catch{}
   child.kill('SIGTERM');
