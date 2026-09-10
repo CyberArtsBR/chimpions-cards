@@ -59,10 +59,13 @@ try{
   assert.match(battleTheme.headers.get('content-type')||'',/audio\/mpeg/i);
   assert.ok((await battleTheme.arrayBuffer()).byteLength>3_000_000);
 
-  const opponentBack=await fetch(`${base}/ui/opponent-card-back.webp`);
+  const opponentBack=await fetch(`${base}/ui/opponent-card-back.svg`);
   assert.equal(opponentBack.status,200);
-  assert.equal(opponentBack.headers.get('content-type'),'image/webp');
-  assert.ok((await opponentBack.arrayBuffer()).byteLength>4_000);
+  assert.match(opponentBack.headers.get('content-type')||'',/image\/svg\+xml/i);
+  const opponentBackSvg=await opponentBack.text();
+  assert.match(opponentBackSvg,/viewBox="0 0 1024 1536"/);
+  assert.match(opponentBackSvg,/OPPONENT CARD/);
+  assert.match(opponentBackSvg,/Revealed After Lock-In/);
 
   const video=await fetch(`${base}/video/crowd-and-flag.mp4`,{method:'HEAD'});
   assert.equal(video.status,200);

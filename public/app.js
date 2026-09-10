@@ -146,7 +146,7 @@ function crest(){return `<svg class="arena-crest" viewBox="0 0 100 110" aria-hid
 function settingsMarkup(){return `<button class="settings-open" aria-haspopup="dialog">Settings</button><dialog id="settingsDialog" aria-labelledby="settingsTitle"><button class="close" aria-label="Close settings">×</button><small class="eyebrow">MAKE IT YOUR ARENA</small><h2 id="settingsTitle">Settings</h2><div class="settings-options"><div><span>Music</span><button class="audio-toggle" id="musicToggle" aria-label="Toggle music"></button></div><div><span>Sound effects</span><button class="audio-toggle" id="sfxToggle" aria-label="Toggle sound effects"></button></div><div><span>Animation</span><button class="motion-toggle" id="motionToggle" aria-label="Cycle motion preference"></button></div>${screen==='battle'?'<div><span>Round pace</span><button class="pace-toggle" id="paceToggle" aria-label="Toggle reveal pace"></button></div>':''}</div><p>Motion follows your device in Auto mode. Reduced motion uses a still arena background.</p></dialog>`}
 function nav(){
   const battle=screen==='battle'||screen==='online';
-  return `<${battle?'div class="battle-topbar"':'header'}><button class="brand" data-go="menu" aria-label="Champions Arena home">${battle?'<b>CHAMPIONS ARENA</b>':'<b>CHIMPIONS</b><span>ARENA</span>'}</button><nav>${battle?'<button data-go="menu">Main menu</button>':'<button data-go="menu">Play</button><button data-go="gallery">Collection</button><button data-go="help">How to play</button>'}${settingsMarkup()}</nav></${battle?'div':'header'}>`
+  return `<${battle?'div class="battle-topbar"':'header'}><button class="brand" data-go="menu" aria-label="Champions Arena home">${battle?'<b>CHAMPIONS ARENA</b>':'<b>CHIMPIONS</b><span>ARENA</span>'}</button>${battle?'':officialLinks(true)}<nav>${battle?'<button data-go="menu">Main menu</button>':'<button data-go="menu">Play</button><button data-go="gallery">Collection</button><button data-go="help">How to play</button>'}${settingsMarkup()}</nav></${battle?'div':'header'}>`
 }
 function footer(){return `<footer class="site-footer"><span>THE CHIMPIONS ARENA <small>Collect your edge. Own the duel.</small></span>${officialLinks(true)}</footer>`}
 function bindNav(){
@@ -184,19 +184,14 @@ function topAttribute(c){
   return ATTRIBUTES.reduce((best,a)=>c.stats[a]>c.stats[best]?a:best,ATTRIBUTES[0]);
 }
 function heroCards(){
-  const picks=[cards[29],cards[99],cards[196]].filter(Boolean);
-  return picks.map((c,i)=>{
-    const top=topAttribute(c);
-    return `<article class="hero-chimp-card hc${i+1}">
-      <div class="hero-chimp-art"><img src="${c.image}" alt="" loading="eager"></div>
-      <div class="hero-chimp-meta"><span>#${String(c.id).padStart(3,'0')}</span><b>${escapeHtml(c.name)}</b><em>${top} ${c.stats[top]}</em></div>
-    </article>`
-  }).join('');
+  const indices=[6,29,57,83,99,128,159,196];
+  const picks=indices.map(i=>cards[i]).filter(Boolean);
+  return picks.map((c,i)=>`<div class="home-card-slot home-card-${i+1}">${card(c,{slot:'showcase'})}</div>`).join('');
 }
 
 function menu(){
   screen='menu';
-  app.innerHTML=nav()+`<main class="hero arena-home">${backgroundVideo('home')}<div class="hero-copy"><div class="eyebrow">${cards.length} CHIMPIONS. ONE ARENA.</div><h1 class="premium-title">The Chimpions<span>Arena</span></h1><p class="hero-tagline">Read your rival. Play your strongest edge.</p><div class="play-panel"><div class="panel-heading"><span>ENTER THE ARENA</span><small>Choose your rules</small></div><fieldset class="mode-picker"><legend class="sr-only">Ruleset</legend><label><input type="radio" name="mode" value="classic"><span><b>Classic</b><small>Win the duel. Keep the initiative.</small></span></label><label><input type="radio" name="mode" value="tactical" checked><span><b>Tactical</b><small>Alternating turns. One reserve swap.</small></span></label></fieldset><label class="difficulty-picker"><span>CPU difficulty</span><select id="cpuDifficulty"><option value="easy">Easy</option><option value="standard">Standard</option><option value="expert">Expert</option></select></label><div class="actions"><button class="primary" id="quick">Play vs CPU <span aria-hidden="true">↗</span></button><button class="secondary" id="onlineBtn">Private 1v1</button></div><small class="play-note">Six attributes. Every decision counts.</small></div></div><div class="hero-card-stack" aria-hidden="true">${heroCards()}<div class="hero-glow"></div><div class="showcase-caption">MEET YOUR NEXT CHAMPION</div></div></main>${footer()}`;
+  app.innerHTML=nav()+`<main class="hero arena-home">${backgroundVideo('home')}<div class="hero-copy"><div class="eyebrow">${cards.length} CHIMPIONS. ONE ARENA.</div><h1 class="premium-title">The Chimpions<span>Arena</span></h1><p class="hero-tagline">Read your rival. Play your strongest edge.</p><div class="play-panel"><div class="panel-heading"><span>ENTER THE ARENA</span><small>Choose your rules</small></div><fieldset class="mode-picker"><legend class="sr-only">Ruleset</legend><label><input type="radio" name="mode" value="classic"><span><b>Classic</b><small>Win the duel. Keep the initiative.</small></span></label><label><input type="radio" name="mode" value="tactical" checked><span><b>Tactical</b><small>Alternating turns. One reserve swap.</small></span></label></fieldset><label class="difficulty-picker"><span>CPU difficulty</span><select id="cpuDifficulty"><option value="easy">Easy</option><option value="standard">Standard</option><option value="expert">Expert</option></select></label><div class="actions"><button class="primary" id="quick">Play vs CPU <span aria-hidden="true">↗</span></button><button class="secondary" id="onlineBtn">Private 1v1</button></div><small class="play-note">Six attributes. Every decision counts.</small></div></div><div class="hero-card-showcase" aria-hidden="true"><div class="home-card-wall">${heroCards()}</div><div class="hero-glow"></div><div class="showcase-caption">BATTLE-READY CHIMPIONS • FULL ATTRIBUTES</div></div></main>${footer()}`;
   const diff=$('#cpuDifficulty');if(diff){diff.value=prefs.difficulty;diff.onchange=()=>{prefs.difficulty=diff.value;localStorage.setItem('chimpions:difficulty',prefs.difficulty)}}
   $('#quick').onclick=()=>{ensureAudio();sfx('ui');start(currentMode(),currentDifficulty())};$('#onlineBtn').onclick=()=>{ensureAudio();sfx('ui');cleanup();online(currentMode())};bindNav()
 }
@@ -215,7 +210,7 @@ function statMarkup(c,a,interactive,selected,disabled){
   </${tag}>`
 }
 function card(c,{hidden=false,interactive=false,selected=null,slot='player',disabledAttrs=[],outcome=null,reveal=false}={}){
-  if(hidden)return `<article class="card premium-card back ${slot}"><div class="tcg-shell" aria-hidden="true"></div><div class="opponent-card-art" aria-hidden="true"><img src="/ui/opponent-card-back.webp" alt="" draggable="false"></div></article>`;
+  if(hidden)return `<article class="card premium-card back ${slot}"><div class="tcg-shell" aria-hidden="true"></div><div class="opponent-card-art" aria-hidden="true"><img src="/ui/opponent-card-back.svg" alt="" draggable="false"></div></article>`;
   if(!c)return '';
   const affinity=topAttribute(c),peak=c.stats[affinity],outcomeClass=outcome?` round-${outcome}`:'';
   return `<article class="card premium-card ${slot} affinity-${attrSlug(affinity)}${outcomeClass} ${reveal?'just-revealed':''}" data-card-tilt>
