@@ -41,150 +41,23 @@ nav>button:not(.primary){background:transparent;box-shadow:none;border-color:tra
 
 .back-design{z-index:3}.count-updated{animation:countUpdated .45s ease both}@keyframes countUpdated{50%{border-color:#e9d097;filter:brightness(1.4)}}
 
-
-/* Locked opponent card: neon arena treatment based on the supplied reference. */
-.reference-card-back{
-  position:absolute!important;
-  inset:8px!important;
-  border-radius:12px!important;
-  overflow:hidden!important;
-  display:block!important;
-  color:#f3f7ff!important;
-  background:
-    linear-gradient(180deg,#06102040 0%,#06071466 38%,#080615b8 100%),
-    linear-gradient(90deg,#00bfff22 0%,transparent 38%,transparent 62%,#ff21d922 100%),
-    url('/video/arena-poster.jpg') center / cover no-repeat!important;
-  box-shadow:
-    inset 0 0 0 1px #bfeaff75,
-    inset 0 0 0 4px #08101f,
-    inset 0 0 0 6px #3c61ff77,
-    inset 0 0 0 8px #db34ff45,
-    inset 0 -90px 120px #030610a8!important;
-}
-.reference-card-back:before{
-  content:""!important;
-  display:block!important;
+/* Locked opponent card: use the approved supplied artwork directly. */
+.opponent-card-art{
   position:absolute;
-  inset:0;
+  inset:3px;
+  z-index:3;
+  overflow:hidden;
+  border-radius:inherit;
+  background:#02050d;
+  box-shadow:0 0 24px #315dff24,0 0 28px #e33dff1c;
+}
+.opponent-card-art img{
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  object-position:center;
+  image-rendering:pixelated;
+  user-select:none;
   pointer-events:none;
-  background:
-    radial-gradient(circle at 50% 42%,#ffffff12 0 2%,transparent 18%),
-    linear-gradient(180deg,#03071133 0,transparent 32%,#02040d55 100%);
-  z-index:1;
-}
-.reference-card-back:after{
-  content:""!important;
-  display:block!important;
-  position:absolute;
-  inset:10px;
-  border-radius:8px;
-  border:1px solid #baf0ff4f;
-  box-shadow:inset 0 0 22px #281e7255,0 0 22px #0ac6ff18;
-  pointer-events:none;
-  z-index:2;
-}
-.back-neon-title{
-  position:absolute;
-  z-index:4;
-  top:17%;
-  left:7%;
-  right:7%;
-  text-align:center;
-  line-height:.9;
-  text-transform:none;
-  filter:drop-shadow(0 2px 4px #000c);
-}
-.back-neon-title span,
-.back-neon-title b{
-  display:block;
-  font-family:ui-monospace,'Courier New',monospace;
-  font-weight:900;
-  letter-spacing:-.055em;
-  color:transparent;
-  background:linear-gradient(90deg,#51ecff 8%,#d8e9ff 47%,#ff57e8 92%);
-  -webkit-background-clip:text;
-  background-clip:text;
-  text-shadow:0 0 12px #42dfff42,0 0 18px #fa45e242;
-}
-.back-neon-title span{font-size:clamp(24px,2.45vw,38px);}
-.back-neon-title b{font-size:clamp(38px,3.7vw,58px);margin-top:5px;}
-
-.back-target{
-  position:absolute;
-  z-index:4;
-  left:50%;
-  top:48%;
-  width:124px;
-  height:124px;
-  transform:translate(-50%,-50%);
-  border-radius:50%;
-  border:2px solid #4a5dff99;
-  box-shadow:
-    inset 0 0 0 10px #351e7f22,
-    0 0 0 13px #4a34ff1c,
-    0 0 28px #9a39ff4d;
-}
-.back-target:before,.back-target:after{
-  content:"";
-  position:absolute;
-  top:50%;
-  width:52px;
-  height:2px;
-  transform:translateY(-50%);
-}
-.back-target:before{right:100%;background:linear-gradient(90deg,transparent,#41e8ff);}
-.back-target:after{left:100%;background:linear-gradient(90deg,#ff4ee5,transparent);}
-.back-target i{
-  position:absolute;
-  width:22px;
-  height:22px;
-  top:50%;
-  transform:translateY(-50%) rotate(45deg);
-  border:3px solid;
-}
-.back-target i:first-child{right:calc(100% + 7px);border-color:#52ecff;box-shadow:0 0 12px #20dfff;}
-.back-target i:nth-child(2){left:calc(100% + 7px);border-color:#ff55e5;box-shadow:0 0 12px #ff35d6;}
-.back-target strong{
-  position:absolute;
-  inset:0;
-  display:grid;
-  place-items:center;
-  font:900 56px/1 ui-monospace,'Courier New',monospace;
-  color:#fff;
-  text-shadow:-5px 0 11px #37e7ff,5px 0 11px #ff45e6;
-}
-
-.reference-card-back .back-caption{
-  position:absolute!important;
-  z-index:4;
-  left:6%!important;
-  right:6%!important;
-  bottom:13%!important;
-  text-align:center!important;
-}
-.reference-card-back .back-caption b{
-  display:block;
-  font:900 clamp(28px,3vw,45px)/.94 var(--display-font);
-  letter-spacing:.025em;
-  color:transparent;
-  background:linear-gradient(90deg,#74efff,#eef4ff 48%,#ff58e9);
-  -webkit-background-clip:text;
-  background-clip:text;
-  filter:drop-shadow(-3px 4px 0 #1b5cff66) drop-shadow(3px 4px 0 #b31abf66);
-}
-.reference-card-back .back-caption i{
-  display:block;
-  width:76%;
-  height:2px;
-  margin:12px auto 13px;
-  background:linear-gradient(90deg,#34e8ff,transparent 48%,#ff42df);
-  box-shadow:0 0 9px #804cff;
-}
-.reference-card-back .back-caption small{
-  display:block!important;
-  margin:0!important;
-  color:#f4f5ff!important;
-  font:500 clamp(11px,1.05vw,16px)/1.2 Inter,sans-serif!important;
-  letter-spacing:.12em;
-  text-shadow:0 2px 7px #000;
 }
