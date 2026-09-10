@@ -498,15 +498,16 @@ function showDetail(id){
 }
 
 function help(){app.innerHTML=nav()+`<main class="copy"><small>CHIMPIONS ARENA • SIX MODES</small><h1>How to play</h1><ol><li><b>🧠 Tactical:</b> alternating chooser, one Reserve Swap each, and the last-used attribute locks for the following round.</li><li><b>💎 Wager:</b> choose a 1–3 card stake, then choose an attribute. Only the lead cards compare; the winner captures every staked card plus any standoff pot.</li><li><b>🚫 Ban & Counter:</b> before each duel, the defender bans one attribute. The chooser must attack through one of the five remaining stats.</li><li><b>⚔️ Triple Clash:</b> select three different attributes. Each attribute is a mini-duel; win more of the three to take the round.</li><li><b>☠️ Survivor:</b> defeated Chimpions are eliminated instead of captured. The winning Chimpion stays at the front until it is beaten. Last squad standing wins.</li><li><b>🌀 Chaos:</b> a new arena modifier appears every round, including Reverse Gravity, attribute lockouts, Crosswire, Sudden Tie, Underdog Boost and Bonus Capture.</li><li><b>CPU is always Expert.</b> Private rooms use the selected mode and stalled turns still auto-resolve.</li></ol><p>All six modes use the same 221-card collection and six deterministic gameplay attributes. They do not represent rarity or market value.</p>${officialLinks(false)}<button class="primary" id="go">Enter Chimpions Arena</button></main>`;$('#go').onclick=()=>go('menu');bindNav()}
-function online(){
-  cleanup();screen='online';
-  app.innerHTML=nav()+`<main class="copy online-copy"><small>YOUR FRIEND. YOUR RIVAL.</small><h1>Challenge a friend</h1><p>Create a four-letter room code or enter one shared by a friend. All rooms use Tactical rules. A disconnected player ends the room; stalled turns auto-resolve after the visible timer.</p><div class="online-rules-lock"><b>Tactical 1v1</b><span>Alternating turns • reserve swap • last-used attribute lock</span></div><div class="room"><button class="primary" id="create">Create room</button><input id="code" maxlength="4" autocomplete="off" placeholder="CODE" aria-label="Room code"><button id="join">Join</button></div><div id="status" aria-live="polite">Connecting…</div></main>`;bindNav();
+function online(defaultMode=selectedMode){
+  cleanup();screen='online';selectedMode=Object.values(MODES).includes(defaultMode)?defaultMode:MODES.tactical;selectedTriple=[];selectedWager=1;
+  app.innerHTML=nav()+`<main class="copy online-copy"><small>YOUR FRIEND. YOUR RIVAL.</small><h1>Challenge a friend</h1><p>Create a four-letter room code, choose any Arena mode, and share the code with a friend. Stalled actions auto-resolve after the visible timer.</p>${modePickerHtml(selectedMode,true)}<div class="room"><button class="primary" id="create">Create room</button><input id="code" maxlength="4" autocomplete="off" placeholder="CODE" aria-label="Room code"><button id="join">Join</button></div><div id="status" aria-live="polite">Connecting…</div></main>`;bindNav();
+  document.querySelectorAll('[name="mode"]').forEach(input=>input.onchange=()=>{selectedMode=input.value;localStorage.setItem('chimpions:mode',selectedMode)});
   socket=new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/room`);
-  socket.onopen=()=>setStatus('Connected — create or join a room.');
+  socket.onopen=()=>setStatus('Connected — choose a mode, then create or join a room.');
   socket.onerror=()=>setStatus('Connection problem. Check the server and try again.');
   socket.onclose=()=>{if(screen==='online'){stopBattleMusic(true);if($('#status'))setStatus('Connection closed. Return to the menu to reconnect.')}};
   socket.onmessage=e=>{let m;try{m=JSON.parse(e.data)}catch{return}handleNet(m)};
-  $('#create').onclick=()=>sendWs({type:'create',mode:MODES.tactical});$('#join').onclick=()=>sendWs({type:'join',code:$('#code').value.trim().toUpperCase()});
+  $('#create').onclick=()=>sendWs({type:'create',mode:currentMode()});$('#join').onclick=()=>sendWs({type:'join',code:$('#code').value.trim().toUpperCase()});
 }
 function setStatus(t){const el=$('#status');if(el)el.textContent=t}
 function sendWs(payload){if(!socket||socket.readyState!==WebSocket.OPEN)return setStatus('Still connecting — try again in a moment.');socket.send(JSON.stringify(payload))}
@@ -521,40 +522,69 @@ function handleNet(m){
 }
 function deadlineMarkup(deadline){return deadline?`<span class="deadline">TURN <b id="turnTimer">--</b>s</span>`:''}
 function startDeadline(deadline){if(!deadline)return;const draw=()=>{const el=$('#turnTimer');if(el)el.textContent=Math.max(0,Math.ceil((deadline-Date.now())/1000))};draw();every(draw,250)}
+function netModePanel(m,{canChoose=false,humanCanBan=false}={}){
+  const meta=modeMeta(m.mode),base=`<div class="mode-battle-panel"><span class="mode-identity"><i>${meta.icon}</i><b>${meta.name}</b><small>${meta.tagline}</small></span>`;
+  if(m.mode===MODES.tactical)return base+tacticalStatus({lastAttribute:m.lastAttribute,active:m.turn?0:1,swaps:m.swaps},['YOU','RIVAL'])+'</div>';
+  if(m.mode===MODES.wager){
+    const wagers=m.legalWagers||[1];
+    return base+(canChoose?`<div class="wager-control"><small>CARDS AT RISK</small>${wagers.map(n=>`<button data-net-wager="${n}" class="${selectedWager===n?'active':''}">💎 ×${n}</button>`).join('')}</div>`:'<span class="mode-hint">The chooser sets the stake.</span>')+'</div>'
+  }
+  if(m.mode===MODES.banCounter){
+    if(humanCanBan)return base+`<div class="ban-control"><small>BAN ONE ATTRIBUTE BEFORE YOUR RIVAL CHOOSES</small><div>${ATTRIBUTES.map(a=>`<button data-net-ban="${a}" class="attr-${attrSlug(a)}">${attrIcon(a)} ${a}</button>`).join('')}</div></div></div>`;
+    return base+`<span class="mode-hint">${m.bannedAttribute?`🚫 ${m.bannedAttribute} is banned this round.`:'Defender is choosing an attribute ban.'}</span></div>`
+  }
+  if(m.mode===MODES.triple)return base+(canChoose?`<div class="triple-control"><small>SELECT 3 ATTRIBUTES • ${selectedTriple.length}/3</small><button id="netTripleLock" ${selectedTriple.length===3?'':'disabled'}>⚔️ LOCK TRIPLE</button></div>`:'<span class="mode-hint">Best of three attribute clashes wins the round.</span>')+'</div>';
+  if(m.mode===MODES.survivor)return base+`<span class="mode-hint">☠️ Eliminated — You ${m.eliminated?.[0]||0} · Rival ${m.eliminated?.[1]||0}. Winner stays.</span></div>`;
+  if(m.mode===MODES.chaos&&m.chaos)return base+`<span class="chaos-modifier"><i>${m.chaos.icon}</i><b>${m.chaos.label}</b><small>${m.chaos.description}</small></span></div>`;
+  return base+'</div>'
+}
+function toggleNetTriple(m,attribute){
+  if(selectedTriple.includes(attribute))selectedTriple=selectedTriple.filter(a=>a!==attribute);
+  else if(selectedTriple.length<3)selectedTriple=[...selectedTriple,attribute];
+  sfx('select');netBattle(m)
+}
 function netBattle(m){
-  screen='online';startBattleMusic();for(const id of intervals)clearInterval(id);intervals.clear();const legal=m.legal||ATTRIBUTES,disabled=ATTRIBUTES.filter(a=>!legal.includes(a));
-  const intro=battleIntroPending&&m.round===1;
-  app.innerHTML=nav()+`<main class="arena choose-phase ${intro?'battle-intro':''}">${backgroundVideo('battle')}${intro?battleIntroFx('RIVAL'):''}<div class="arena-atmosphere"><i></i><i></i><i></i></div>
-    ${battleHud(m.counts[0],m.counts[1],'RIVAL',m.round,m.maxRounds,m.mode,m.pot)}
-    <div class="turn-banner ${m.turn?'your-turn':''}">${m.turn?'YOUR TURN • CHOOSE AN ATTRIBUTE':'RIVAL IS CHOOSING'} ${deadlineMarkup(m.deadline)}</div>
-    ${m.mode===MODES.tactical?tacticalStatus({lastAttribute:m.lastAttribute,active:m.turn?0:1,swaps:m.swaps},['YOU','RIVAL']):''}
-    <section class="table"><div class="player-slot">${card(m.card,{interactive:m.turn,slot:'player',disabledAttrs:disabled})}${m.mode===MODES.tactical?`<button class="swap" id="netSwap" ${!m.turn||!m.swaps?.[0]?'disabled':''}>Reserve swap <b>${m.swaps?.[0]||0}</b></button>`:''}</div>
-    ${idleVersus(m.turn,m.pot)}
+  screen='online';startBattleMusic();for(const id of intervals)clearInterval(id);intervals.clear();
+  const legal=m.legal||ATTRIBUTES,disabled=ATTRIBUTES.filter(a=>!legal.includes(a)),humanCanBan=m.phase==='ban'&&m.turn,canChoose=m.phase==='choose'&&m.turn;
+  const intro=battleIntroPending&&m.round===1,meta=modeMeta(m.mode),selected=m.mode===MODES.triple?selectedTriple:null;
+  const banner=humanCanBan?'YOUR COUNTER • BAN ONE ATTRIBUTE':m.phase==='ban'?'RIVAL IS BANNING AN ATTRIBUTE':canChoose?(m.mode===MODES.triple?'YOUR TURN • SELECT THREE ATTRIBUTES':m.mode===MODES.wager?'YOUR TURN • SET THE STAKE AND CHOOSE':'YOUR TURN • CHOOSE AN ATTRIBUTE'):'RIVAL IS CHOOSING';
+  app.innerHTML=nav()+`<main class="arena mode-${m.mode} ${m.phase==='ban'?'ban-phase':'choose-phase'} ${intro?'battle-intro':''}">${backgroundVideo('battle')}${intro?battleIntroFx('RIVAL'):''}<div class="arena-atmosphere"><i></i><i></i><i></i></div>
+    ${battleHud(m.counts[0],m.counts[1],'RIVAL',m.round,m.maxRounds,`${meta.icon} ${meta.name}`,m.pot)}
+    <div class="turn-banner ${m.turn?'your-turn':''}">${banner} ${deadlineMarkup(m.deadline)}</div>
+    ${netModePanel(m,{canChoose,humanCanBan})}
+    <section class="table"><div class="player-slot">${card(m.card,{interactive:canChoose,selected,slot:'player',disabledAttrs:disabled})}${m.mode===MODES.tactical?`<button class="swap" id="netSwap" ${!canChoose||!m.swaps?.[0]?'disabled':''}>Reserve swap <b>${m.swaps?.[0]||0}</b></button>`:''}</div>
+    ${idleVersus(canChoose,m.pot)}
     <div class="opponent-slot">${card(null,{hidden:true,slot:'opponent'})}</div></section><div id="announcer" class="sr-only" aria-live="polite">${m.turn?'Your move':'Opponent turn'}</div></main>`;bindNav();if(intro)battleIntroPending=false;
-  if(m.turn)document.querySelectorAll('[data-stat]').forEach(b=>b.onclick=()=>{sfx('select');sendWs({type:'action',action:b.dataset.stat})});
-  const sw=$('#netSwap');if(sw)bindSwapPreview(sw,()=>sendWs({type:'swap'}));bindBattleKeys({canChoose:m.turn,reveal:false,online:true});startDeadline(m.deadline)
+  document.querySelectorAll('[data-net-ban]').forEach(b=>b.onclick=()=>{sfx('select');sendWs({type:'ban',attribute:b.dataset.netBan})});
+  if(canChoose)document.querySelectorAll('[data-stat]').forEach(b=>b.onclick=()=>{
+    if(m.mode===MODES.triple)return toggleNetTriple(m,b.dataset.stat);
+    sfx('select');sendWs({type:'action',action:b.dataset.stat,wager:m.mode===MODES.wager?selectedWager:1})
+  });
+  document.querySelectorAll('[data-net-wager]').forEach(b=>b.onclick=()=>{selectedWager=Number(b.dataset.netWager);sfx('select');netBattle(m)});
+  $('#netTripleLock')?.addEventListener('click',()=>{if(selectedTriple.length===3){sfx('select');sendWs({type:'action',action:[...selectedTriple]})}});
+  const sw=$('#netSwap');if(sw)bindSwapPreview(sw,()=>sendWs({type:'swap'}));bindBattleKeys({canChoose:canChoose&&m.mode!==MODES.triple,reveal:false,online:true});startDeadline(m.deadline)
 }
 function netReveal(m){
-  for(const id of intervals)clearInterval(id);intervals.clear();const winner=m.winner===null?null:m.winner==='you'?0:1,cls=winner===null?'is-tie':winner===0?'is-win':'is-loss',status=winner===null?'STANDOFF':winner===0?'YOU WIN':'RIVAL WINS',result={cards:m.cards,capturedCards:m.capturedCards,values:m.values,attribute:m.attribute,winner,countsBefore:m.countsBefore,capturedCount:m.capturedCount};
+  for(const id of intervals)clearInterval(id);intervals.clear();selectedTriple=[];selectedWager=1;
+  const winner=m.winner===null?null:m.winner==='you'?0:1,cls=winner===null?'is-tie':winner===0?'is-win':'is-loss',status=winner===null?'STANDOFF':winner===0?'YOU WIN':'RIVAL WINS';
+  const result={cards:m.cards,capturedCards:m.capturedCards,eliminatedCards:m.eliminatedCards,values:m.values,attribute:m.attribute,attributes:m.attributes,comparisons:m.comparisons||[],winner,countsBefore:m.countsBefore,capturedCount:m.capturedCount,stake:m.stake,modifier:m.modifier,bannedAttribute:m.bannedAttribute};
   sfx('reveal');schedule(()=>sfx(winner===null?'tie':winner===0?'win':'lose'),650);
-  const counts=m.counts||netState?.counts||['—','—'],round=m.round||netState?.round||'—',maxRounds=m.maxRounds||netState?.maxRounds||24,mode=m.mode||netState?.mode||MODES.tactical;
-  app.innerHTML=nav()+`<main class="arena ${cls} reveal-phase">${backgroundVideo('battle')}<div class="arena-atmosphere"><i></i><i></i><i></i></div>
-    ${battleHud(counts[0],counts[1],'RIVAL',round,maxRounds,mode,m.pot||0)}
-    <div class="turn-banner result-banner">${m.attribute.toUpperCase()} LOCKED • ROUND RESOLVED</div>
-    <section class="table"><div class="player-slot">${card(m.cards[0],{selected:m.attribute,slot:'player',outcome:winner===null?'tie':winner===0?'winner':'loser'})}</div>
+  const counts=m.counts||netState?.counts||['—','—'],round=m.round||netState?.round||'—',maxRounds=m.maxRounds||netState?.maxRounds||24,mode=m.mode||netState?.mode||MODES.tactical,meta=modeMeta(mode),selected=result.attributes?.length>1?result.attributes:result.attribute;
+  app.innerHTML=nav()+`<main class="arena mode-${mode} ${cls} reveal-phase">${backgroundVideo('battle')}<div class="arena-atmosphere"><i></i><i></i><i></i></div>
+    ${battleHud(counts[0],counts[1],'RIVAL',round,maxRounds,`${meta.icon} ${meta.name}`,m.pot||0)}
+    <div class="turn-banner result-banner">${m.attribute.toUpperCase()} • ROUND RESOLVED</div>
+    <section class="table"><div class="player-slot">${card(m.cards[0],{selected,slot:'player',outcome:winner===null?'tie':winner===0?'winner':'loser'})}</div>
     ${duelVersus(result,'RIVAL')}
-    <div class="opponent-slot">${card(m.cards[1],{selected:m.attribute,slot:'opponent',outcome:winner===null?'tie':winner===1?'winner':'loser',reveal:true})}</div></section>
+    <div class="opponent-slot">${card(m.cards[1],{selected,slot:'opponent',outcome:winner===null?'tie':winner===1?'winner':'loser',reveal:true})}</div></section>
     ${captureFx(result)}
     <div id="announcer" class="sr-only" aria-live="polite">${status}</div></main>`;bindNav();animateDuelScores();animateCaptureCounts(result,counts);bindBattleKeys({canChoose:false,reveal:true,online:true})
 }
 function netGameOver(m){
   stopBattleMusic(true);
-  const state=m.winner==='you'?'win':m.winner==='draw'?'draw':'loss',title=state==='win'?'Victory':state==='draw'?'Draw':'Defeat',margin=Math.abs(m.counts[0]-m.counts[1]);
+  const state=m.winner==='you'?'win':m.winner==='draw'?'draw':'loss',title=state==='win'?'Victory':state==='draw'?'Draw':'Defeat',margin=Math.abs(m.counts[0]-m.counts[1]),meta=modeMeta(m.mode||MODES.tactical);
   if(state==='win')sfx('final');else sfx(state==='draw'?'tie':'lose');
-  app.innerHTML=nav()+`<main class="result match-result ${state}"><div class="result-aura"></div><div class="result-kicker">PRIVATE 1V1 • MATCH COMPLETE</div>
-    <div class="trophy">${crest()}</div><h1>${title}</h1><p>The room resolved with a final card margin of ${margin}.</p>
+  app.innerHTML=nav()+`<main class="result match-result result-video-screen ${state}">${backgroundVideo('battle')}<div class="result-aura"></div><div class="result-kicker">${meta.icon} ${meta.name.toUpperCase()} • PRIVATE 1V1 COMPLETE</div>
+    <div class="trophy">${crest()}</div><h1>${title}</h1><p>The room resolved with a final squad/card margin of ${margin}.</p>
     <div class="final-scoreboard"><div><small>YOU</small><b>${m.counts[0]}</b></div><i>FINAL</i><div><small>RIVAL</small><b>${m.counts[1]}</b></div></div>
-    <div class="result-actions"><button class="primary" id="onlineAgain">New room</button><button data-go="menu">Main menu</button></div></main>`;$('#onlineAgain').onclick=()=>online(m.mode||MODES.tactical);bindNav()
+    <div class="result-actions"><button class="primary" id="onlineAgain">New room</button><button data-go="menu">Main menu</button></div></main>`;$('#onlineAgain').onclick=()=>online(m.mode||selectedMode);bindNav();syncArenaVideo()
 }
-
-fetch('/data/chimpions.json').then(r=>{if(!r.ok)throw new Error(`HTTP ${r.status}`);return r.json()}).then(d=>{manifest=d;cards=decorateCards(d.cards||[]);menu()}).catch(()=>app.innerHTML='<main class="result loss"><h1>Collection unavailable</h1><p>Refresh to try again.</p></main>');
