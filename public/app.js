@@ -14,14 +14,14 @@ const prefs={
   difficulty:localStorage.getItem('chimpions:difficulty')||CPU_DIFFICULTIES.standard,
   motion:localStorage.getItem('chimpions:motion')||'auto'
 };
-let audioCtx=null,battleTrack=null,battleMusicUnlockArmed=false,roundAdvanceTimer=null,musicDuckTimer=null,cpuDifficulty=prefs.difficulty,battleIntroPending=false;
+let audioCtx=null,battleTrack=null,battleMusicUnlockArmed=false,roundAdvanceTimer=null,cpuDifficulty=prefs.difficulty,battleIntroPending=false;
 
 const placeholder=`data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600"><rect width="600" height="600" fill="#111527"/><circle cx="300" cy="260" r="120" fill="#242b45"/><text x="300" y="300" text-anchor="middle" font-family="sans-serif" font-size="128" font-weight="800" fill="#c8ff42">C</text><text x="300" y="450" text-anchor="middle" font-family="sans-serif" font-size="28" fill="#aeb5cc">CHIMPION</text></svg>`)}`;
 
 function schedule(fn,ms){const e=epoch,id=setTimeout(()=>{timers.delete(id);if(e===epoch)fn()},ms);timers.add(id);return id}
 function every(fn,ms){const e=epoch,id=setInterval(()=>{if(e===epoch)fn();else{clearInterval(id);intervals.delete(id)}},ms);intervals.add(id);return id}
 function cleanup({closeSocket=true}={}){
-  epoch++; for(const id of timers)clearTimeout(id);timers.clear();for(const id of intervals)clearInterval(id);intervals.clear();roundAdvanceTimer=null;musicDuckTimer=null;document.onkeydown=null;
+  epoch++; for(const id of timers)clearTimeout(id);timers.clear();for(const id of intervals)clearInterval(id);intervals.clear();roundAdvanceTimer=null;document.onkeydown=null;
   stopBattleMusic(true);
   if(closeSocket&&socket){try{socket.close()}catch{}socket=null;netState=null}
 }
@@ -37,23 +37,16 @@ function tone(freq,duration=.12,gain=.035,type='sine',delay=0){
 }
 function sfx(type){
   if(!prefs.sfx)return;ensureAudio();
-  if(['reveal','win','lose','tie','final'].includes(type))duckBattleMusic(type==='final'?1700:950);
   const map={ui:[520],select:[360,620,920],reveal:[150,300,600],win:[440,660,880,1320],lose:[240,180,120],tie:[330,440,330],swap:[520,390],final:[523,659,784,1047,1318]};
   (map[type]||map.ui).forEach((freq,i)=>tone(freq,type==='reveal'?.2:.15,type==='final'?.05:.042,i%2?'triangle':'sine',i*.065))
 }
-const BATTLE_THEME_URL='/audio/battle-theme.mp3',BATTLE_MUSIC_VOLUME=.32;
+const BATTLE_THEME_URL='/audio/battle-theme.mp3',BATTLE_MUSIC_VOLUME=.14;
 const ARENA_VIDEO_URL='/video/crowd-and-flag.mp4';
 const OFFICIAL_LINKS={
   site:'https://www.chimpions.co/',
   x:'https://x.com/TheChimpions',
   discord:'https://discord.gg/thechimpions'
 };
-function duckBattleMusic(ms=900){
-  if(!battleTrack||battleTrack.paused)return;
-  battleTrack.volume=BATTLE_MUSIC_VOLUME*.38;
-  if(musicDuckTimer){clearTimeout(musicDuckTimer);timers.delete(musicDuckTimer)}
-  musicDuckTimer=schedule(()=>{musicDuckTimer=null;if(battleTrack&&!battleTrack.paused)battleTrack.volume=BATTLE_MUSIC_VOLUME},ms)
-}
 function ensureBattleTrack(){
   if(!battleTrack){
     battleTrack=new Audio(BATTLE_THEME_URL);battleTrack.loop=true;battleTrack.preload='auto';battleTrack.volume=BATTLE_MUSIC_VOLUME;
@@ -153,7 +146,7 @@ function crest(){return `<svg class="arena-crest" viewBox="0 0 100 110" aria-hid
 function settingsMarkup(){return `<button class="settings-open" aria-haspopup="dialog">Settings</button><dialog id="settingsDialog" aria-labelledby="settingsTitle"><button class="close" aria-label="Close settings">×</button><small class="eyebrow">MAKE IT YOUR ARENA</small><h2 id="settingsTitle">Settings</h2><div class="settings-options"><div><span>Music</span><button class="audio-toggle" id="musicToggle" aria-label="Toggle music"></button></div><div><span>Sound effects</span><button class="audio-toggle" id="sfxToggle" aria-label="Toggle sound effects"></button></div><div><span>Animation</span><button class="motion-toggle" id="motionToggle" aria-label="Cycle motion preference"></button></div>${screen==='battle'?'<div><span>Round pace</span><button class="pace-toggle" id="paceToggle" aria-label="Toggle reveal pace"></button></div>':''}</div><p>Motion follows your device in Auto mode. Reduced motion uses a still arena background.</p></dialog>`}
 function nav(){
   const battle=screen==='battle'||screen==='online';
-  return `<${battle?'div class="battle-topbar"':'header'}><button class="brand" data-go="menu" aria-label="Chimpions Arena home"><b>CHIMPIONS</b><span>ARENA</span></button><nav>${battle?'<button data-go="menu">Main menu</button>':'<button data-go="menu">Play</button><button data-go="gallery">Collection</button><button data-go="help">How to play</button>'}${settingsMarkup()}</nav></${battle?'div':'header'}>`
+  return `<${battle?'div class="battle-topbar"':'header'}><button class="brand" data-go="menu" aria-label="Champions Arena home">${battle?'<b>CHAMPIONS ARENA</b>':'<b>CHIMPIONS</b><span>ARENA</span>'}</button><nav>${battle?'<button data-go="menu">Main menu</button>':'<button data-go="menu">Play</button><button data-go="gallery">Collection</button><button data-go="help">How to play</button>'}${settingsMarkup()}</nav></${battle?'div':'header'}>`
 }
 function footer(){return `<footer class="site-footer"><span>THE CHIMPIONS ARENA <small>Collect your edge. Own the duel.</small></span>${officialLinks(true)}</footer>`}
 function bindNav(){
@@ -222,7 +215,7 @@ function statMarkup(c,a,interactive,selected,disabled){
   </${tag}>`
 }
 function card(c,{hidden=false,interactive=false,selected=null,slot='player',disabledAttrs=[],outcome=null,reveal=false}={}){
-  if(hidden)return `<article class="card premium-card back ${slot}"><div class="tcg-shell" aria-hidden="true"></div><div class="back-design"><div class="back-orbit"></div>${crest()}<strong>THE CHIMPIONS<span>ARENA</span></strong><div class="back-caption"><b>Opponent card</b><small>Revealed after lock-in</small></div></div></article>`;
+  if(hidden)return `<article class="card premium-card back ${slot}"><div class="tcg-shell" aria-hidden="true"></div><div class="back-design reference-card-back"><div class="back-neon-title"><span>The Chimpions</span><b>Arena</b></div><div class="back-target" aria-hidden="true"><i></i><i></i><strong>◇</strong></div><div class="back-caption"><b>OPPONENT CARD</b><i></i><small>Revealed After Lock-in</small></div></div></article>`;
   if(!c)return '';
   const affinity=topAttribute(c),peak=c.stats[affinity],outcomeClass=outcome?` round-${outcome}`:'';
   return `<article class="card premium-card ${slot} affinity-${attrSlug(affinity)}${outcomeClass} ${reveal?'just-revealed':''}" data-card-tilt>
