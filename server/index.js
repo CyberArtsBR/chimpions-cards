@@ -99,7 +99,7 @@ wss.on('connection',ws=>{
     if(m.type==='create'){
       if(ws.room)return send(ws,'error',{message:'Leave the current room before creating another.'});
       let c;do c=roomCode();while(rooms.has(c));
-      const mode=m.mode===MODES.tactical?MODES.tactical:MODES.classic,room={code:c,mode,players:[ws],game:null,finished:false,createdAt:Date.now(),deadline:null};
+      const mode=MODES.tactical,room={code:c,mode,players:[ws],game:null,finished:false,createdAt:Date.now(),deadline:null};
       rooms.set(c,room);ws.room=c;ws.seat=0;send(ws,'room',{code:c,seat:0,mode});scheduleGc(room,WAITING_TTL);return
     }
     if(m.type==='join'){

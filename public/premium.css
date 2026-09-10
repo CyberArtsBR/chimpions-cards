@@ -370,3 +370,64 @@ header>.nav-socials .official-discord{color:#aaa8ff}
   header>.nav-socials svg{width:16px;height:16px;flex-basis:16px}
   .home-card-wall{grid-template-columns:repeat(4,140px)}
 }
+
+
+/* Tactical-only locked rules: one competitive mode, Expert CPU. */
+.locked-rules{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+  margin:0 0 16px;
+}
+.locked-rules>span{
+  min-height:82px;
+  padding:13px 14px;
+  border:1px solid #8edff72e;
+  border-radius:9px;
+  background:linear-gradient(145deg,#0b1522cc,#09101bcc);
+  box-shadow:inset 0 1px #ffffff0b;
+}
+.locked-rules b{
+  display:block;
+  margin-bottom:6px;
+  color:#c9f4ff;
+  font-size:14px;
+  letter-spacing:.025em;
+}
+.locked-rules small{
+  display:block;
+  color:#99adbf;
+  font-size:11px;
+  line-height:1.4;
+}
+.locked-rules>span:last-child{
+  border-color:#c58cff38;
+}
+.locked-rules>span:last-child b{
+  color:#d9c8ff;
+}
+.online-rules-lock{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  margin:18px 0;
+  padding:13px 15px;
+  border:1px solid #8edff735;
+  border-radius:10px;
+  background:linear-gradient(145deg,#101b2a,#09111c);
+}
+.online-rules-lock b{
+  color:#c9f4ff;
+  font-size:14px;
+}
+.online-rules-lock span{
+  color:#92a8bd;
+  font-size:11px;
+  text-align:right;
+}
+@media(max-width:620px){
+  .locked-rules{grid-template-columns:1fr}
+  .online-rules-lock{align-items:flex-start;flex-direction:column;gap:5px}
+  .online-rules-lock span{text-align:left}
+}
