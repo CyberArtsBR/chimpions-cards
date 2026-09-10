@@ -220,7 +220,8 @@ function prepareCpuBan(){
 }
 function statMarkup(c,a,interactive,selected,disabled){
   const tag=interactive?'button':'div',reason=disabled?'Locked in Tactical mode because this attribute was used last round.':'',attrs=interactive?`data-stat="${a}" ${disabled?'disabled':''} ${reason?`title="${reason}" aria-label="${a} ${c.stats[a]}. ${reason}"`:''}`:'',meta=ATTRIBUTE_UI[a]||{icon:'•',short:a};
-  return `<${tag} class="stat attr-${attrSlug(a)} ${selected===a?'selected':''} ${disabled?'locked':''}" ${attrs}>
+  const isSelected=Array.isArray(selected)?selected.includes(a):selected===a;
+  return `<${tag} class="stat attr-${attrSlug(a)} ${isSelected?'selected':''} ${disabled?'locked':''}" ${attrs}>
     <span class="stat-icon">${attrIcon(a)}</span><span class="stat-name">${a}</span><b>${c.stats[a]}</b>${disabled?'<small class="stat-lock">LOCKED</small>':''}<i style="--v:${c.stats[a]}%"></i>
   </${tag}>`
 }
@@ -299,14 +300,22 @@ function idleVersus(canChoose,pot=0){
 }
 function duelVersus(result,rightLabel='CPU'){
   const state=result.winner===null?'tie':result.winner===0?'you-win':'rival-win',winner=result.winner===null?null:result.cards[result.winner],verdict=result.winner===null?'STANDOFF':result.winner===0?'YOU WIN THE DUEL':`${rightLabel} WINS THE DUEL`;
+  const triple=result.attributes?.length===3;
+  const icon=triple?'⚔️':attrIcon(result.attribute);
+  const label=triple?'TRIPLE CLASH':`${result.attribute} DUEL`;
+  const detail=triple?`<div class="triple-breakdown">${result.comparisons.map(c=>`<span><b>${c.attribute}</b> ${c.values[0]}–${c.values[1]}</span>`).join('')}</div>`:'';
+  const stake=result.stake>1?`<div class="duel-mode-note">💎 STAKE × ${result.stake}</div>`:'';
+  const chaos=result.modifier?`<div class="duel-mode-note chaos-note">${result.modifier.icon} ${result.modifier.label}</div>`:'';
   return `<div class="versus reveal-versus ${state}">
     <div class="duel-energy" aria-hidden="true"><i></i><i></i><i></i></div>
-    <div class="duel-attribute"><i>${attrIcon(result.attribute)}</i><span>${result.attribute} DUEL</span></div>
+    <div class="duel-attribute"><i>${icon}</i><span>${label}</span></div>
+    ${stake}${chaos}
     <div class="duel-scoreline">
       <div class="score-plate score-player"><small>YOU</small><b class="score-value" data-target="${result.values[0]}">${result.values[0]}</b></div>
       <i class="duel-vs">VS</i>
       <div class="score-plate score-rival"><small>${rightLabel}</small><b class="score-value" data-target="${result.values[1]}">${result.values[1]}</b></div>
     </div>
+    ${detail}
     <div class="duel-verdict">${verdict}</div>
     <div class="duel-winner-name">${winner?escapeHtml(winner.name):'THE POT GROWS'}</div>
     <div class="winner-stamp ${result.winner===null?'stamp-tie':result.winner===0?'stamp-player':'stamp-rival'}">${result.winner===null?'STANDOFF':'WINNER'}</div>
@@ -330,64 +339,122 @@ function animateDuelScores(){
 }
 function captureFx(result){
   if(!result)return '';
+  if(result.eliminatedCards?.length){
+    const dir=result.winner===0?'to-rival':'to-player';
+    return `<div class="elimination-fx ${dir}" aria-hidden="true"><span>☠️ CHIMPION ELIMINATED</span></div>`
+  }
   if(result.winner===null)return '<div class="capture-fx standoff-fx"><i></i><i></i><i></i></div>';
   const dir=result.winner===0?'to-player':'to-rival';
   return `<div class="capture-cards ${dir}" aria-hidden="true">${(result.capturedCards?.length?result.capturedCards:result.cards).map((c,i)=>`<div class="flying-card" style="--i:${i}"><img src="${c.image}" alt=""></div>`).join('')}<span>+${result.capturedCount||2} cards</span></div>`
 }
+function modeBattlePanel(g,{canChoose=false,humanCanBan=false}={}){
+  const meta=modeMeta(g.mode),base=`<div class="mode-battle-panel"><span class="mode-identity"><i>${meta.icon}</i><b>${meta.name}</b><small>${meta.tagline}</small></span>`;
+  if(g.mode===MODES.tactical)return base+tacticalStatus(g,['YOU','CPU'])+'</div>';
+  if(g.mode===MODES.wager){
+    const wagers=legalWagers(g);
+    const controls=canChoose?`<div class="wager-control"><small>CARDS AT RISK</small>${wagers.map(n=>`<button data-wager="${n}" class="${selectedWager===n?'active':''}">💎 ×${n}</button>`).join('')}</div>`:'<span class="mode-hint">The chooser sets the stake.</span>';
+    return base+controls+'</div>'
+  }
+  if(g.mode===MODES.banCounter){
+    if(humanCanBan)return base+`<div class="ban-control"><small>BAN ONE ATTRIBUTE BEFORE CPU CHOOSES</small><div>${ATTRIBUTES.map(a=>`<button data-ban="${a}" class="attr-${attrSlug(a)}">${attrIcon(a)} ${a}</button>`).join('')}</div></div></div>`;
+    return base+`<span class="mode-hint">${g.bannedAttribute?`🚫 ${g.bannedAttribute} is banned this round.`:'Defender is choosing an attribute ban.'}</span></div>`
+  }
+  if(g.mode===MODES.triple){
+    const controls=canChoose?`<div class="triple-control"><small>SELECT 3 ATTRIBUTES • ${selectedTriple.length}/3</small><button id="tripleLock" ${selectedTriple.length===3?'':'disabled'}>⚔️ LOCK TRIPLE</button></div>`:'<span class="mode-hint">Best of three attribute clashes wins the round.</span>';
+    return base+controls+'</div>'
+  }
+  if(g.mode===MODES.survivor)return base+`<span class="mode-hint">☠️ Eliminated — You ${g.eliminated[0].length} · CPU ${g.eliminated[1].length}. Winner stays.</span></div>`;
+  if(g.mode===MODES.chaos)return base+`<span class="chaos-modifier"><i>${g.chaos.icon}</i><b>${g.chaos.label}</b><small>${g.chaos.description}</small></span></div>`;
+  return base+'</div>'
+}
+function chooseBanner(g,reveal,canChoose,humanCanBan){
+  if(reveal)return `${g.result.attribute.toUpperCase()} • ROUND RESOLVED`;
+  if(humanCanBan)return 'YOUR COUNTER • BAN ONE ATTRIBUTE';
+  if(g.phase==='ban')return 'CPU IS COUNTERING YOUR CARD';
+  if(canChoose&&g.mode===MODES.triple)return 'YOUR TURN • SELECT THREE ATTRIBUTES';
+  if(canChoose&&g.mode===MODES.wager)return 'YOUR TURN • SET THE STAKE AND CHOOSE';
+  if(canChoose)return 'YOUR TURN • CHOOSE AN ATTRIBUTE';
+  return 'CPU IS SCANNING THE MATCHUP'
+}
+function chooseBan(attribute){
+  if(!game||game.mode!==MODES.banCounter||game.phase!=='ban'||game.active!==1)return;
+  try{setBan(game,attribute,0);sfx('select');renderBattle();scheduleCpu()}catch(e){console.warn(e)}
+}
+function toggleTriple(attribute){
+  if(!game||game.mode!==MODES.triple||game.phase!=='choose'||game.active!==0)return;
+  if(selectedTriple.includes(attribute))selectedTriple=selectedTriple.filter(a=>a!==attribute);
+  else if(selectedTriple.length<3)selectedTriple=[...selectedTriple,attribute];
+  sfx('select');renderBattle()
+}
+function lockTriple(){
+  if(selectedTriple.length!==3)return;
+  choose([...selectedTriple])
+}
 function renderBattle(){
   if(!game)return menu();if(game.finished)return finish();
-  const reveal=game.phase==='reveal',result=game.result;
+  const reveal=game.phase==='reveal',result=game.result,humanCanBan=!reveal&&game.mode===MODES.banCounter&&game.phase==='ban'&&game.active===1;
   const p=reveal?result.cards[0]:game.decks[0][0],o=reveal?result.cards[1]:game.decks[1][0];
-  const canChoose=!reveal&&game.active===0,legal=legalAttributes(game),disabled=ATTRIBUTES.filter(a=>!legal.includes(a));
-  const status=outcomeText(result),roundClass=reveal?(result.winner===null?'is-tie':result.winner===0?'is-win':'is-loss'):'',phaseClass=reveal?'reveal-phase':'choose-phase';
+  const canChoose=!reveal&&game.phase==='choose'&&game.active===0,legal=legalAttributes(game),disabled=ATTRIBUTES.filter(a=>!legal.includes(a));
+  const status=outcomeText(result),roundClass=reveal?(result.winner===null?'is-tie':result.winner===0?'is-win':'is-loss'):'',phaseClass=reveal?'reveal-phase':game.phase==='ban'?'ban-phase':'choose-phase';
   const pOutcome=reveal?(result.winner===null?'tie':result.winner===0?'winner':'loser'):null,oOutcome=reveal?(result.winner===null?'tie':result.winner===1?'winner':'loser'):null;
-  const banner=reveal?`${result.attribute.toUpperCase()} LOCKED • ROUND RESOLVED`:canChoose?'YOUR TURN • CHOOSE AN ATTRIBUTE':'CPU IS SCANNING THE MATCHUP';
-  const intro=battleIntroPending&&!reveal;
-  app.innerHTML=nav()+`<main class="arena ${roundClass} ${phaseClass} ${intro?'battle-intro':''}">
-    ${backgroundVideo('battle')}
-    ${intro?battleIntroFx('CPU'):''}
-    <div class="arena-atmosphere"><i></i><i></i><i></i></div>
-    ${battleHud(game.decks[0].length,game.decks[1].length,'CPU',game.round,game.maxRounds,game.mode+' · '+cpuDifficulty+' CPU',game.pot.length*2)}
-    <div class="turn-banner ${canChoose?'your-turn':''} ${reveal?'result-banner':''}">${banner}</div>
-    ${game.mode===MODES.tactical&&!reveal?tacticalStatus(game,['YOU','CPU']):''}
+  const banner=chooseBanner(game,reveal,canChoose,humanCanBan),intro=battleIntroPending&&!reveal,meta=modeMeta(game.mode);
+  const selected=reveal?(result.attributes?.length>1?result.attributes:result.attribute):(game.mode===MODES.triple?selectedTriple:null);
+  app.innerHTML=nav()+`<main class="arena mode-${game.mode} ${roundClass} ${phaseClass} ${intro?'battle-intro':''}">
+    ${backgroundVideo('battle')}${intro?battleIntroFx('CPU'):''}<div class="arena-atmosphere"><i></i><i></i><i></i></div>
+    ${battleHud(game.decks[0].length,game.decks[1].length,'CPU',game.round,game.maxRounds,`${meta.icon} ${meta.name} · EXPERT CPU`,game.pot.length*2)}
+    <div class="turn-banner ${canChoose||humanCanBan?'your-turn':''} ${reveal?'result-banner':''}">${banner}</div>
+    ${!reveal?modeBattlePanel(game,{canChoose,humanCanBan}):''}
     <section class="table">
-      <div class="player-slot">${card(p,{interactive:canChoose,selected:result?.attribute,slot:'player',disabledAttrs:disabled,outcome:pOutcome})}${game.mode===MODES.tactical&&!reveal?`<button class="swap" id="swap" ${!canChoose||!game.swaps[0]||game.decks[0].length<2?'disabled':''}>Reserve swap <b>${game.swaps[0]}</b></button>`:''}</div>
+      <div class="player-slot">${card(p,{interactive:canChoose,selected,slot:'player',disabledAttrs:disabled,outcome:pOutcome})}${game.mode===MODES.tactical&&!reveal?`<button class="swap" id="swap" ${!canChoose||!game.swaps[0]||game.decks[0].length<2?'disabled':''}>Reserve swap <b>${game.swaps[0]}</b></button>`:''}</div>
       ${reveal?duelVersus(result,'CPU'):idleVersus(canChoose,game.pot.length*2)}
-      <div class="opponent-slot">${card(o,{hidden:!reveal,interactive:false,selected:result?.attribute,slot:'opponent',outcome:oOutcome,reveal})}</div>
+      <div class="opponent-slot">${card(o,{hidden:!reveal,interactive:false,selected,slot:'opponent',outcome:oOutcome,reveal})}</div>
     </section>
     ${reveal?captureFx(result):''}
     ${reveal?'<div class="round-actions"><button class="primary continue-round" id="continueRound">Next round</button><small>Auto-continues in '+(revealHoldMs()/1000).toFixed(1)+'s · '+(prefs.fast?'Fast':'Normal')+' pace</small></div>':''}
     <div id="announcer" class="sr-only" aria-live="polite">${status}</div>
   </main>`;
   bindNav();if(intro)battleIntroPending=false;if(reveal){animateDuelScores();animateCaptureCounts(result,game.decks.map(d=>d.length))};
-  if(canChoose)document.querySelectorAll('[data-stat]').forEach(b=>b.onclick=()=>choose(b.dataset.stat));
+  if(humanCanBan)document.querySelectorAll('[data-ban]').forEach(b=>b.onclick=()=>chooseBan(b.dataset.ban));
+  if(canChoose)document.querySelectorAll('[data-stat]').forEach(b=>b.onclick=()=>game.mode===MODES.triple?toggleTriple(b.dataset.stat):choose(b.dataset.stat));
+  document.querySelectorAll('[data-wager]').forEach(b=>b.onclick=()=>{selectedWager=Number(b.dataset.wager);sfx('select');renderBattle()});
+  $('#tripleLock')?.addEventListener('click',lockTriple);
   const sw=$('#swap');if(sw)bindSwapPreview(sw,doSwap);
-  const next=$('#continueRound');if(next)next.onclick=continueRound;bindBattleKeys({canChoose,reveal,online:false});
+  const next=$('#continueRound');if(next)next.onclick=continueRound;bindBattleKeys({canChoose:canChoose&&game.mode!==MODES.triple,reveal,online:false});
   preload(game.decks[0][1]?.image);preload(game.decks[1][1]?.image)
 }
 function choose(attribute){
   if(!game||game.finished||game.phase!=='choose'||game.active!==0)return;
   ensureAudio();sfx('select');
-  try{const r=resolveRound(game,attribute,0);sfx('reveal');schedule(()=>roundSound(r),650);renderBattle();queueRoundAdvance()}catch(e){console.warn(e)}
+  try{
+    const options=game.mode===MODES.wager?{wager:selectedWager}:{};
+    const r=resolveRound(game,attribute,0,options);selectedTriple=[];selectedWager=1;sfx('reveal');schedule(()=>roundSound(r),650);renderBattle();queueRoundAdvance()
+  }catch(e){console.warn(e)}
 }
 function doSwap(){
   try{reserveSwap(game,0);sfx('swap');renderBattle()}catch(e){console.warn(e)}
 }
 function roundSound(r){sfx(r.winner===null?'tie':r.winner===0?'win':'lose')}
 function afterReveal(){
-  if(!game||game.finished)return;advanceMatch(game);if(game.finished)return finish();renderBattle();if(game.active===1)scheduleCpu()
+  if(!game||game.finished)return;advanceMatch(game);if(game.finished)return finish();
+  selectedTriple=[];selectedWager=1;prepareCpuBan();renderBattle();if(game.phase==='choose'&&game.active===1)scheduleCpu()
 }
 function scheduleCpu(){
   if(!game||game.finished||game.phase!=='choose'||game.active!==1)return;
   schedule(()=>{
     if(!game||game.finished||game.phase!=='choose'||game.active!==1)return;
-    const banned=game.mode===MODES.tactical?game.lastAttribute:null;
-    let chosen=chooseCpuAttribute(game.decks[1][0],cards,banned,{difficulty:cpuDifficulty,rng:Math.random});
-    const strength=attributeWinRate(game.decks[1][0],chosen,cards);
-    if(game.mode===MODES.tactical&&game.swaps[1]&&game.decks[1].length>1&&strength<.42){
-      reserveSwap(game,1);sfx('swap');renderBattle();chosen=chooseCpuAttribute(game.decks[1][0],cards,banned,{difficulty:cpuDifficulty,rng:Math.random})
+    let choice,wager=1;
+    if(game.mode===MODES.triple)choice=chooseCpuAttributes(game,game.decks[1][0],cards,3);
+    else{
+      choice=chooseCpuAttribute(game.decks[1][0],cards,null,{difficulty:CPU_DIFFICULTIES.expert,rng:Math.random,game});
+      if(game.mode===MODES.wager)wager=chooseCpuWager(game,game.decks[1][0],cards);
     }
-    const r=resolveRound(game,chosen,1);sfx('reveal');schedule(()=>roundSound(r),650);renderBattle();queueRoundAdvance()
+    if(game.mode===MODES.tactical){
+      const strength=attributeWinRate(game.decks[1][0],choice,cards);
+      if(game.swaps[1]&&game.decks[1].length>1&&strength<.42){
+        reserveSwap(game,1);sfx('swap');renderBattle();choice=chooseCpuAttribute(game.decks[1][0],cards,null,{difficulty:CPU_DIFFICULTIES.expert,rng:Math.random,game})
+      }
+    }
+    const r=resolveRound(game,choice,1,{wager});sfx('reveal');schedule(()=>roundSound(r),650);renderBattle();queueRoundAdvance()
   },CPU_THINK_MS)
 }
 function finish(){
