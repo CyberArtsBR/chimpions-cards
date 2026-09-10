@@ -198,17 +198,25 @@ function heroCards(){
 
 function menu(){
   screen='menu';
-  app.innerHTML=nav()+`<main class="hero arena-home">${backgroundVideo('home')}<div class="hero-copy"><div class="eyebrow">${cards.length} CHIMPIONS. ONE ARENA.</div><h1 class="premium-title">The Chimpions<span>Arena</span></h1><p class="hero-tagline">Read your rival. Play your strongest edge.</p><div class="play-panel"><div class="panel-heading"><span>ENTER THE ARENA</span><small>Competitive rules locked</small></div><div class="locked-rules" aria-label="Game rules"><span><b>Tactical Duel</b><small>Alternating turns. One reserve swap. Last-used attribute locks for the next round.</small></span><span><b>Expert CPU</b><small>Maximum difficulty. The CPU always uses its strongest available decision logic.</small></span></div><div class="actions"><button class="primary" id="quick">Play vs Expert CPU <span aria-hidden="true">↗</span></button><button class="secondary" id="onlineBtn">Private 1v1</button></div><small class="play-note">One competitive ruleset. Six attributes. Every decision counts.</small></div></div><div class="hero-card-showcase" aria-hidden="true"><div class="home-card-wall">${heroCards()}</div><div class="hero-glow"></div><div class="showcase-caption">BATTLE-READY CHIMPIONS • FULL ATTRIBUTES</div></div></main>${footer()}`;
+  const meta=modeMeta(selectedMode);
+  app.innerHTML=nav()+`<main class="hero arena-home">${backgroundVideo('home')}<div class="hero-copy"><div class="eyebrow">${cards.length} CHIMPIONS. SIX WAYS TO BATTLE.</div><h1 class="premium-title">The Chimpions<span>Arena</span></h1><p class="hero-tagline">Pick your rules. Read your rival. Own the arena.</p><div class="play-panel"><div class="panel-heading"><span>CHOOSE YOUR MODE</span><small>CPU is always Expert</small></div>${modePickerHtml(selectedMode)}<div class="expert-lock"><span>🤖</span><b>EXPERT CPU</b><small>Maximum decision strength in every CPU mode.</small></div><div class="actions"><button class="primary" id="quick">Play ${meta.icon} ${meta.name} vs CPU <span aria-hidden="true">↗</span></button><button class="secondary" id="onlineBtn">Private 1v1</button></div><small class="play-note">Each mode changes the actual rules — not just the presentation.</small></div></div><div class="hero-card-showcase" aria-hidden="true"><div class="home-card-wall">${heroCards()}</div><div class="hero-glow"></div><div class="showcase-caption">BATTLE-READY CHIMPIONS • FULL ATTRIBUTES</div></div></main>${footer()}`;
   prefs.difficulty=CPU_DIFFICULTIES.expert;localStorage.setItem('chimpions:difficulty',CPU_DIFFICULTIES.expert);
-  $('#quick').onclick=()=>{ensureAudio();sfx('ui');start()};$('#onlineBtn').onclick=()=>{ensureAudio();sfx('ui');cleanup();online()};bindNav()
+  document.querySelectorAll('[name="mode"]').forEach(input=>input.onchange=()=>{selectedMode=input.value;localStorage.setItem('chimpions:mode',selectedMode);const m=modeMeta(selectedMode);$('#quick').innerHTML=`Play ${m.icon} ${m.name} vs CPU <span aria-hidden="true">↗</span>`});
+  $('#quick').onclick=()=>{ensureAudio();sfx('ui');start(currentMode())};$('#onlineBtn').onclick=()=>{ensureAudio();sfx('ui');cleanup();online(currentMode())};bindNav()
 }
-
-function start(){
+function start(mode=selectedMode){
   cleanup();screen='battle';ensureAudio();cpuDifficulty=CPU_DIFFICULTIES.expert;
+  selectedMode=Object.values(MODES).includes(mode)?mode:MODES.tactical;localStorage.setItem('chimpions:mode',selectedMode);
   prefs.difficulty=CPU_DIFFICULTIES.expert;localStorage.setItem('chimpions:difficulty',CPU_DIFFICULTIES.expert);
-  const starter=Math.random()<.5?0:1;
-  game=createMatch(cards,{deckSize:6,maxRounds:24,mode:MODES.tactical,starter});
-  battleIntroPending=true;renderBattle();startBattleMusic({restart:true});sfx('ui');if(game.active===1)scheduleCpu();
+  selectedTriple=[];selectedWager=1;
+  const starter=Math.random()<.5?0:1,maxRounds=selectedMode===MODES.survivor?36:24;
+  game=createMatch(cards,{maxRounds,mode:selectedMode,starter});
+  prepareCpuBan();battleIntroPending=true;renderBattle();startBattleMusic({restart:true});sfx('ui');
+  if(game.phase==='choose'&&game.active===1)scheduleCpu();
+}
+function prepareCpuBan(){
+  if(!game||game.finished||game.mode!==MODES.banCounter||game.phase!=='ban'||game.active!==0)return;
+  const ban=chooseCpuBan(game,game.decks[0][0],cards);setBan(game,ban,1);
 }
 function statMarkup(c,a,interactive,selected,disabled){
   const tag=interactive?'button':'div',reason=disabled?'Locked in Tactical mode because this attribute was used last round.':'',attrs=interactive?`data-stat="${a}" ${disabled?'disabled':''} ${reason?`title="${reason}" aria-label="${a} ${c.stats[a]}. ${reason}"`:''}`:'',meta=ATTRIBUTE_UI[a]||{icon:'•',short:a};
@@ -422,8 +430,7 @@ function showDetail(id){
   $('#previousCard').onclick=()=>showDetail(visible[index-1]);$('#nextCard').onclick=()=>showDetail(visible[index+1]);bindImages();if(!$('#detail').open)$('#detail').showModal()
 }
 
-function help(){app.innerHTML=nav()+`<main class="copy"><small>CHIMPIONS ARENA • QUICK GUIDE</small><h1>How to play</h1><ol><li>Study your visible Chimpion and choose one of its six game attributes. Keyboard players can use <b>1–6</b>.</li><li>The rival card reveals. The higher value wins both cards; the duel score remains visible long enough to read, or you can press <b>Next round</b>.</li><li>A tie creates a <b>Standoff Pot</b>. Those cards stay in the middle until the next decisive duel.</li><li><b>Tactical rules:</b> the chooser alternates every round. The attribute used last round becomes locked, and each side receives one Reserve Swap. Press <b>S</b> to prepare the swap.</li><li><b>CPU matches always use Expert difficulty.</b> The CPU evaluates the available attributes with its strongest decision logic.</li><li><b>Fast Pace</b> shortens the reveal hold. Motion can be Auto, Reduced, or Full.</li><li>If the match ends with an unresolved pot, tied cards return to their original owners before final scoring.</li></ol><p>Game stats use an equal deterministic budget. They are gameplay attributes — not rarity, market value, or official collection rankings.</p>${officialLinks(false)}<button class="primary" id="go">Enter Chimpions Arena</button></main>`;$('#go').onclick=()=>start();bindNav()}
-
+function help(){app.innerHTML=nav()+`<main class="copy"><small>CHIMPIONS ARENA • SIX MODES</small><h1>How to play</h1><ol><li><b>🧠 Tactical:</b> alternating chooser, one Reserve Swap each, and the last-used attribute locks for the following round.</li><li><b>💎 Wager:</b> choose a 1–3 card stake, then choose an attribute. Only the lead cards compare; the winner captures every staked card plus any standoff pot.</li><li><b>🚫 Ban & Counter:</b> before each duel, the defender bans one attribute. The chooser must attack through one of the five remaining stats.</li><li><b>⚔️ Triple Clash:</b> select three different attributes. Each attribute is a mini-duel; win more of the three to take the round.</li><li><b>☠️ Survivor:</b> defeated Chimpions are eliminated instead of captured. The winning Chimpion stays at the front until it is beaten. Last squad standing wins.</li><li><b>🌀 Chaos:</b> a new arena modifier appears every round, including Reverse Gravity, attribute lockouts, Crosswire, Sudden Tie, Underdog Boost and Bonus Capture.</li><li><b>CPU is always Expert.</b> Private rooms use the selected mode and stalled turns still auto-resolve.</li></ol><p>All six modes use the same 221-card collection and six deterministic gameplay attributes. They do not represent rarity or market value.</p>${officialLinks(false)}<button class="primary" id="go">Enter Chimpions Arena</button></main>`;$('#go').onclick=()=>go('menu');bindNav()}
 function online(){
   cleanup();screen='online';
   app.innerHTML=nav()+`<main class="copy online-copy"><small>YOUR FRIEND. YOUR RIVAL.</small><h1>Challenge a friend</h1><p>Create a four-letter room code or enter one shared by a friend. All rooms use Tactical rules. A disconnected player ends the room; stalled turns auto-resolve after the visible timer.</p><div class="online-rules-lock"><b>Tactical 1v1</b><span>Alternating turns • reserve swap • last-used attribute lock</span></div><div class="room"><button class="primary" id="create">Create room</button><input id="code" maxlength="4" autocomplete="off" placeholder="CODE" aria-label="Room code"><button id="join">Join</button></div><div id="status" aria-live="polite">Connecting…</div></main>`;bindNav();
