@@ -506,17 +506,12 @@ function startDeadline(deadline){if(!deadline)return;const draw=()=>{const el=$(
 function netModePanel(m,{canChoose=false,humanCanBan=false}={}){
   const meta=modeMeta(m.mode),base=`<div class="mode-battle-panel"><span class="mode-identity"><i>${meta.icon}</i><b>${meta.name}</b><small>${meta.tagline}</small></span>`;
   if(m.mode===MODES.tactical)return base+tacticalStatus({lastAttribute:m.lastAttribute,active:m.turn?0:1,swaps:m.swaps},['YOU','RIVAL'])+'</div>';
-  if(m.mode===MODES.wager){
-    const wagers=m.legalWagers||[1];
-    return base+(canChoose?`<div class="wager-control"><small>CARDS AT RISK</small>${wagers.map(n=>`<button data-net-wager="${n}" class="${selectedWager===n?'active':''}">💎 ×${n}</button>`).join('')}</div>`:'<span class="mode-hint">The chooser sets the stake.</span>')+'</div>'
-  }
   if(m.mode===MODES.banCounter){
     if(humanCanBan)return base+`<div class="ban-control"><small>BAN ONE ATTRIBUTE BEFORE YOUR RIVAL CHOOSES</small><div>${ATTRIBUTES.map(a=>`<button data-net-ban="${a}" class="attr-${attrSlug(a)}">${attrIcon(a)} ${a}</button>`).join('')}</div></div></div>`;
     return base+`<span class="mode-hint">${m.bannedAttribute?`🚫 ${m.bannedAttribute} is banned this round.`:'Defender is choosing an attribute ban.'}</span></div>`
   }
   if(m.mode===MODES.triple)return base+(canChoose?`<div class="triple-control"><small>SELECT 3 ATTRIBUTES • ${selectedTriple.length}/3</small></div>`:'<span class="mode-hint">Best of three attribute clashes wins the round.</span>')+'</div>';
-  if(m.mode===MODES.survivor)return base+`<span class="mode-hint">☠️ Eliminated — You ${m.eliminated?.[0]||0} · Rival ${m.eliminated?.[1]||0}. Winner stays.</span></div>`;
-  if(m.mode===MODES.chaos&&m.chaos)return base+`<span class="chaos-modifier"><i>${m.chaos.icon}</i><b>${m.chaos.label}</b><small>${m.chaos.description}</small></span></div>`;
+  if(m.mode===MODES.teamTag)return base+`<span class="mode-hint">🤝 Two cards each · own both top-two values to capture the rival pair · winner keeps initiative · split top two = draw and chooser switches.</span></div>`;
   return base+'</div>'
 }
 function toggleNetTriple(m,attribute){
@@ -534,37 +529,24 @@ function toggleNetTriple(m,attribute){
 function netBattle(m){
   screen='online';startBattleMusic();for(const id of intervals)clearInterval(id);intervals.clear();
   const legal=m.legal||ATTRIBUTES,disabled=ATTRIBUTES.filter(a=>!legal.includes(a)),humanCanBan=m.phase==='ban'&&m.turn,canChoose=m.phase==='choose'&&m.turn;
-  const intro=battleIntroPending&&m.round===1,meta=modeMeta(m.mode),selected=m.mode===MODES.triple?selectedTriple:null;
-  const banner=humanCanBan?'YOUR COUNTER • BAN ONE ATTRIBUTE':m.phase==='ban'?'RIVAL IS BANNING AN ATTRIBUTE':canChoose?(m.mode===MODES.triple?'YOUR TURN • SELECT THREE ATTRIBUTES':m.mode===MODES.wager?'YOUR TURN • SET THE STAKE AND CHOOSE':'YOUR TURN • CHOOSE AN ATTRIBUTE'):'RIVAL IS CHOOSING';
-  app.innerHTML=nav()+`<main class="arena mode-${m.mode} ${m.phase==='ban'?'ban-phase':'choose-phase'} ${intro?'battle-intro':''}">${backgroundVideo('battle')}${intro?battleIntroFx('RIVAL'):''}<div class="arena-atmosphere"><i></i><i></i><i></i></div>
-    ${battleHud(m.counts[0],m.counts[1],'RIVAL',m.round,m.maxRounds,`${meta.icon} ${meta.name}`,m.pot)}
-    <div class="turn-banner ${m.turn?'your-turn':''}">${banner} ${deadlineMarkup(m.deadline)}</div>
-    ${netModePanel(m,{canChoose,humanCanBan})}
-    <section class="table"><div class="player-slot">${card(m.card,{interactive:canChoose,selected,slot:'player',disabledAttrs:disabled})}${m.mode===MODES.tactical?`<button class="swap" id="netSwap" ${!canChoose||!m.swaps?.[0]?'disabled':''}>Reserve swap <b>${m.swaps?.[0]||0}</b></button>`:''}</div>
-    ${idleVersus(canChoose,m.pot)}
-    <div class="opponent-slot">${card(null,{hidden:true,slot:'opponent'})}</div></section><div id="announcer" class="sr-only" aria-live="polite">${m.turn?'Your move':'Opponent turn'}</div></main>`;bindNav();if(intro)battleIntroPending=false;
+  const intro=battleIntroPending&&m.round===1,meta=modeMeta(m.mode),selected=m.mode===MODES.triple?selectedTriple:null,teamTag=m.mode===MODES.teamTag;
+  const banner=humanCanBan?'YOUR COUNTER • BAN ONE ATTRIBUTE':m.phase==='ban'?'RIVAL IS BANNING AN ATTRIBUTE':canChoose?(m.mode===MODES.triple?'YOUR TURN • SELECT THREE ATTRIBUTES':teamTag?'YOUR TURN • CHOOSE THE TEAM ATTRIBUTE':'YOUR TURN • CHOOSE AN ATTRIBUTE'):(teamTag?'RIVAL IS READING BOTH TAG CARDS':'RIVAL IS CHOOSING');
+  const table=teamTag?`<section class="table team-tag-table"><div class="player-slot team-slot">${teamPair(m.cards||[m.card],{interactive:canChoose,selected,side:'player'})}</div>${idleVersus(canChoose,0)}<div class="opponent-slot team-slot">${teamPair([null,null],{hidden:true,side:'opponent'})}</div></section>`:
+  `<section class="table"><div class="player-slot">${card(m.card,{interactive:canChoose,selected,slot:'player',disabledAttrs:disabled})}${m.mode===MODES.tactical?`<button class="swap" id="netSwap" ${!canChoose||!m.swaps?.[0]?'disabled':''}>Reserve swap <b>${m.swaps?.[0]||0}</b></button>`:''}</div>${idleVersus(canChoose,m.pot)}<div class="opponent-slot">${card(null,{hidden:true,slot:'opponent'})}</div></section>`;
+  app.innerHTML=nav()+`<main class="arena mode-${m.mode} ${m.phase==='ban'?'ban-phase':'choose-phase'} ${intro?'battle-intro':''}">${backgroundVideo('battle')}${intro?battleIntroFx('RIVAL'):''}<div class="arena-atmosphere"><i></i><i></i><i></i></div>${battleHud(m.counts[0],m.counts[1],'RIVAL',m.round,m.maxRounds,`${meta.icon} ${meta.name}`,teamTag?0:m.pot)}<div class="turn-banner ${m.turn?'your-turn':''}">${banner} ${deadlineMarkup(m.deadline)}</div>${netModePanel(m,{canChoose,humanCanBan})}${table}<div id="announcer" class="sr-only" aria-live="polite">${m.turn?'Your move':'Opponent turn'}</div></main>`;bindNav();if(intro)battleIntroPending=false;
   document.querySelectorAll('[data-net-ban]').forEach(b=>b.onclick=()=>{sfx('select');sendWs({type:'ban',attribute:b.dataset.netBan})});
-  if(canChoose)document.querySelectorAll('[data-stat]').forEach(b=>b.onclick=()=>{
-    if(m.mode===MODES.triple)return toggleNetTriple(m,b.dataset.stat);
-    sfx('select');sendWs({type:'action',action:b.dataset.stat,wager:m.mode===MODES.wager?selectedWager:1})
-  });
-  document.querySelectorAll('[data-net-wager]').forEach(b=>b.onclick=()=>{selectedWager=Number(b.dataset.netWager);sfx('select');netBattle(m)});
+  if(canChoose)document.querySelectorAll('[data-stat]').forEach(b=>b.onclick=()=>{if(m.mode===MODES.triple)return toggleNetTriple(m,b.dataset.stat);sfx('select');sendWs({type:'action',action:b.dataset.stat})});
   const sw=$('#netSwap');if(sw)bindSwapPreview(sw,()=>sendWs({type:'swap'}));bindBattleKeys({canChoose:canChoose&&m.mode!==MODES.triple,reveal:false,online:true});startDeadline(m.deadline)
 }
 function netReveal(m){
   for(const id of intervals)clearInterval(id);intervals.clear();selectedTriple=[];
   const winner=m.winner===null?null:m.winner==='you'?0:1,cls=winner===null?'is-tie':winner===0?'is-win':'is-loss',status=winner===null?'STANDOFF':winner===0?'YOU WIN':'RIVAL WINS';
-  const result={cards:m.cards,capturedCards:m.capturedCards,eliminatedCards:m.eliminatedCards,values:m.values,attribute:m.attribute,attributes:m.attributes,comparisons:m.comparisons||[],winner,countsBefore:m.countsBefore,capturedCount:m.capturedCount,stake:m.stake,modifier:m.modifier,bannedAttribute:m.bannedAttribute};
+  const result={cards:m.cards,capturedCards:m.capturedCards,values:m.values,attribute:m.attribute,attributes:m.attributes,comparisons:m.comparisons||[],winner,countsBefore:m.countsBefore,capturedCount:m.capturedCount,stake:1,bannedAttribute:m.bannedAttribute,teamCards:m.teamCards,teamValues:m.teamValues,rankings:m.rankings};
   sfx('reveal');schedule(()=>sfx(winner===null?'tie':winner===0?'win':'lose'),650);
-  const counts=m.counts||netState?.counts||['—','—'],round=m.round||netState?.round||'—',maxRounds=m.maxRounds||netState?.maxRounds||24,mode=m.mode||netState?.mode||MODES.tactical,meta=modeMeta(mode),selected=result.attributes?.length>1?result.attributes:result.attribute;
-  app.innerHTML=nav()+`<main class="arena mode-${mode} ${cls} reveal-phase">${backgroundVideo('battle')}<div class="arena-atmosphere"><i></i><i></i><i></i></div>
-    ${battleHud(counts[0],counts[1],'RIVAL',round,maxRounds,`${meta.icon} ${meta.name}`,m.pot||0)}
-    <div class="turn-banner result-banner">${m.attribute.toUpperCase()} • ROUND RESOLVED</div>
-    <section class="table"><div class="player-slot">${card(m.cards[0],{selected,slot:'player',outcome:winner===null?'tie':winner===0?'winner':'loser'})}</div>
-    ${duelVersus(result,'RIVAL')}
-    <div class="opponent-slot">${card(m.cards[1],{selected,slot:'opponent',outcome:winner===null?'tie':winner===1?'winner':'loser',reveal:true})}</div></section>
-    ${captureFx(result)}
-    <div id="announcer" class="sr-only" aria-live="polite">${status}</div></main>`;bindNav();animateDuelScores();animateCaptureCounts(result,counts);bindBattleKeys({canChoose:false,reveal:true,online:true})
+  const counts=m.counts||netState?.counts||['—','—'],round=m.round||netState?.round||'—',maxRounds=m.maxRounds||netState?.maxRounds||24,mode=m.mode||netState?.mode||MODES.tactical,meta=modeMeta(mode),selected=result.attributes?.length>1?result.attributes:result.attribute,teamTag=mode===MODES.teamTag;
+  const table=teamTag?`<section class="table team-tag-table"><div class="player-slot team-slot">${teamPair(result.teamCards[0],{selected,outcome:winner===null?'tie':winner===0?'winner':'loser',side:'player'})}</div>${duelVersus(result,'RIVAL')}<div class="opponent-slot team-slot">${teamPair(result.teamCards[1],{selected,outcome:winner===null?'tie':winner===1?'winner':'loser',reveal:true,side:'opponent'})}</div></section>`:
+  `<section class="table"><div class="player-slot">${card(m.cards[0],{selected,slot:'player',outcome:winner===null?'tie':winner===0?'winner':'loser'})}</div>${duelVersus(result,'RIVAL')}<div class="opponent-slot">${card(m.cards[1],{selected,slot:'opponent',outcome:winner===null?'tie':winner===1?'winner':'loser',reveal:true})}</div></section>`;
+  app.innerHTML=nav()+`<main class="arena mode-${mode} ${cls} reveal-phase">${backgroundVideo('battle')}<div class="arena-atmosphere"><i></i><i></i><i></i></div>${battleHud(counts[0],counts[1],'RIVAL',round,maxRounds,`${meta.icon} ${meta.name}`,teamTag?0:(m.pot||0))}<div class="turn-banner result-banner">${m.attribute.toUpperCase()} • ROUND RESOLVED</div>${table}${captureFx(result)}<div id="announcer" class="sr-only" aria-live="polite">${status}</div></main>`;bindNav();animateDuelScores();animateCaptureCounts(result,counts);bindBattleKeys({canChoose:false,reveal:true,online:true})
 }
 function netGameOver(m){
   stopBattleMusic(true);
