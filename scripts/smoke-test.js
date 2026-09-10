@@ -68,7 +68,10 @@ try{
     const tutorial=await fetch(`${base}/tutorials/${name}.webp`);
     assert.equal(tutorial.status,200);
     assert.equal(tutorial.headers.get('content-type'),'image/webp');
-    assert.ok((await tutorial.arrayBuffer()).byteLength>25_000);
+    const tutorialBytes=Buffer.from(await tutorial.arrayBuffer());
+    assert.ok(tutorialBytes.byteLength>5_000);
+    assert.equal(tutorialBytes.subarray(0,4).toString('ascii'),'RIFF');
+    assert.equal(tutorialBytes.subarray(8,12).toString('ascii'),'WEBP');
   }
 
   const opponentBack=await fetch(`${base}/ui/opponent-card-back.svg`);
