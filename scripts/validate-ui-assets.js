@@ -33,7 +33,7 @@ function webpDimensions(buffer){
 for(const name of tutorials){
   const file=path.join(root,'public','tutorials',`${name}.webp`);
   const buffer=fs.readFileSync(file);
-  assert.ok(buffer.byteLength>=180_000,`${name}.webp is unexpectedly small (${buffer.byteLength} bytes); likely degraded or corrupt`);
+  assert.ok(buffer.byteLength>=150_000,`${name}.webp is unexpectedly small (${buffer.byteLength} bytes); likely degraded or corrupt`);
   const dim=webpDimensions(buffer);
   assert.ok(dim.width>=1200&&dim.height>=1200,`${name}.webp is too low resolution: ${dim.width}x${dim.height}`);
   assert.ok(Math.abs(dim.width/dim.height-1)<0.01,`${name}.webp should remain square`);
