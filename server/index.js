@@ -6,8 +6,8 @@ import {randomInt} from 'node:crypto';
 import {WebSocketServer,WebSocket} from 'ws';
 import {fileURLToPath} from 'node:url';
 import {
-  ATTRIBUTES,MODES,decorateCards,createMatch,legalAttributes,resolveRound,advanceMatch,
-  reserveSwap,chooseCpuAttribute
+  ATTRIBUTES,MODES,decorateCards,createMatch,legalAttributes,legalWagers,resolveRound,advanceMatch,
+  reserveSwap,setBan,chooseCpuAttribute,chooseCpuAttributes,chooseCpuBan,chooseCpuWager
 } from '../public/engine.js';
 
 const root=fileURLToPath(new URL('../public/',import.meta.url));
@@ -53,21 +53,37 @@ function destroyRoom(code,reason=null){const room=rooms.get(code);if(!room)retur
 function scheduleGc(room,ms){if(room.gcTimer)clearTimeout(room.gcTimer);room.gcTimer=setTimeout(()=>destroyRoom(room.code),ms)}
 
 function publicState(room,seat){
-  const g=room.game;
+  const g=room.game,actor=g.phase==='ban'?1-g.active:g.active;
   return {
     card:g.decks[seat][0],counts:[g.decks[seat].length,g.decks[1-seat].length],round:g.round,maxRounds:g.maxRounds,
-    pot:g.pot.length*2,turn:g.active===seat,mode:g.mode,lastAttribute:g.lastAttribute,legal:legalAttributes(g),swaps:[g.swaps[seat],g.swaps[1-seat]],deadline:room.deadline
+    pot:g.pot.length*2,turn:actor===seat,phase:g.phase,mode:g.mode,lastAttribute:g.lastAttribute,
+    bannedAttribute:g.bannedAttribute,legal:legalAttributes(g),legalWagers:legalWagers(g),
+    swaps:[g.swaps[seat],g.swaps[1-seat]],eliminated:[g.eliminated[seat].length,g.eliminated[1-seat].length],
+    chaos:g.chaos,deadline:room.deadline
   }
 }
 function broadcastState(room){peers(room).forEach((p,i)=>send(p,'state',publicState(room,i)))}
 function armTurn(room){
   if(room.turnTimer)clearTimeout(room.turnTimer);room.turnTimer=null;
-  const g=room.game;if(!g||g.finished||g.phase!=='choose')return;
+  const g=room.game;if(!g||g.finished||!['ban','choose'].includes(g.phase))return;
+  const actor=g.phase==='ban'?1-g.active:g.active;
   room.deadline=Date.now()+TURN_MS;broadcastState(room);
   room.turnTimer=setTimeout(()=>{
-    if(!room.game||room.game.finished||room.game.phase!=='choose')return;
-    const seat=room.game.active,card=room.game.decks[seat][0],banned=room.game.mode===MODES.tactical?room.game.lastAttribute:null;
-    const attribute=chooseCpuAttribute(card,cards,banned);performAction(room,seat,attribute,true)
+    if(!room.game||room.game.finished||!['ban','choose'].includes(room.game.phase))return;
+    const current=room.game;
+    if(current.phase==='ban'){
+      const defender=1-current.active,ban=chooseCpuBan(current,current.decks[current.active][0],cards);
+      try{setBan(current,ban,defender)}catch{return}
+      return armTurn(room)
+    }
+    const seat=current.active,card=current.decks[seat][0];
+    let action,wager=1;
+    if(current.mode===MODES.triple)action=chooseCpuAttributes(current,card,cards,3);
+    else{
+      action=chooseCpuAttribute(card,cards,null,{game:current});
+      if(current.mode===MODES.wager)wager=chooseCpuWager(current,card,cards)
+    }
+    performAction(room,seat,action,true,wager)
   },TURN_MS+25)
 }
 function sendGameOver(room){
@@ -75,56 +91,24 @@ function sendGameOver(room){
   peers(room).forEach((p,i)=>send(p,'gameover',{winner:out.winner===null?'draw':out.winner===i?'you':'them',counts:[out.counts[i],out.counts[1-i]],mode:g.mode,roundsPlayed:out.roundsPlayed}));
   scheduleGc(room,FINISHED_TTL)
 }
-function performAction(room,seat,attribute,timedOut=false){
+function performAction(room,seat,action,timedOut=false,wager=1){
   const g=room?.game;if(!g||room.finished||g.finished||g.phase!=='choose')return false;
-  if(seat!==g.active||!legalAttributes(g).includes(attribute))return false;
+  if(seat!==g.active)return false;
   if(room.turnTimer)clearTimeout(room.turnTimer);room.turnTimer=null;room.deadline=null;
-  let result;try{result=resolveRound(g,attribute,seat)}catch{return false}
-  peers(room).forEach((p,i)=>send(p,'reveal',{
-    countsBefore:i===0?result.countsBefore:[result.countsBefore[1],result.countsBefore[0]],capturedCount:result.capturedCount,capturedCards:result.capturedCards,
-    cards:i===0?result.cards:[result.cards[1],result.cards[0]],values:i===0?result.values:[result.values[1],result.values[0]],attribute,
-    winner:result.winner===null?null:(result.winner===i?'you':'them'),pot:g.pot.length*2,timedOut:timedOut&&seat===i,
-    counts:[g.decks[i].length,g.decks[1-i].length],round:g.round,maxRounds:g.maxRounds,mode:g.mode
-  }));
+  let result;try{result=resolveRound(g,action,seat,{wager})}catch{return false}
+  peers(room).forEach((p,i)=>{
+    const comparisons=(result.comparisons||[]).map(c=>({...c,values:i===0?c.values:[c.values[1],c.values[0]],winner:c.winner===null?null:(c.winner===i?0:1)}));
+    send(p,'reveal',{
+      countsBefore:i===0?result.countsBefore:[result.countsBefore[1],result.countsBefore[0]],
+      capturedCount:result.capturedCount,capturedCards:result.capturedCards,eliminatedCards:result.eliminatedCards,
+      cards:i===0?result.cards:[result.cards[1],result.cards[0]],values:i===0?result.values:[result.values[1],result.values[0]],
+      attribute:result.attribute,attributes:result.attributes,comparisons,stake:result.stake,modifier:result.modifier,bannedAttribute:result.bannedAttribute,
+      winner:result.winner===null?null:(result.winner===i?'you':'them'),pot:g.pot.length*2,timedOut:timedOut&&seat===i,
+      counts:[g.decks[i].length,g.decks[1-i].length],round:g.round,maxRounds:g.maxRounds,mode:g.mode
+    })
+  });
   room.revealTimer=setTimeout(()=>{
     room.revealTimer=null;advanceMatch(g);if(g.finished)sendGameOver(room);else armTurn(room)
   },REVEAL_MS);
   return true
 }
-
-wss.on('connection',ws=>{
-  ws.room=null;ws.seat=null;
-  ws.on('message',raw=>{
-    let m;try{m=JSON.parse(raw)}catch{return send(ws,'error',{message:'Invalid message'})}
-    if(m.type==='create'){
-      if(ws.room)return send(ws,'error',{message:'Leave the current room before creating another.'});
-      let c;do c=roomCode();while(rooms.has(c));
-      const mode=MODES.tactical,room={code:c,mode,players:[ws],game:null,finished:false,createdAt:Date.now(),deadline:null};
-      rooms.set(c,room);ws.room=c;ws.seat=0;send(ws,'room',{code:c,seat:0,mode});scheduleGc(room,WAITING_TTL);return
-    }
-    if(m.type==='join'){
-      if(ws.room)return send(ws,'error',{message:'You are already in a room.'});
-      const c=String(m.code||'').trim().toUpperCase(),room=rooms.get(c);
-      if(!room||room.finished||room.players.length!==1)return send(ws,'error',{message:'Room unavailable'});
-      if(room.players.includes(ws))return send(ws,'error',{message:'You cannot join your own room.'});
-      if(room.gcTimer)clearTimeout(room.gcTimer);room.gcTimer=null;room.players.push(ws);ws.room=c;ws.seat=1;
-      room.game=createMatch(cards,{deckSize:6,maxRounds:24,mode:room.mode,starter:randomInt(2)});
-      peers(room).forEach((p,i)=>send(p,'ready',{code:c,seat:i,mode:room.mode}));armTurn(room);return
-    }
-    const room=rooms.get(ws.room);
-    if(!room||room.finished)return send(ws,'error',{message:'This room is no longer active.'});
-    if(m.type==='action'){
-      if(!performAction(room,ws.seat,m.action,false))send(ws,'error',{message:'That action is not legal right now.'});return
-    }
-    if(m.type==='swap'){
-      const g=room.game;if(!g||g.finished||g.phase!=='choose'||g.active!==ws.seat)return send(ws,'error',{message:'Reserve swap is not available now.'});
-      try{reserveSwap(g,ws.seat);broadcastState(room)}catch(e){send(ws,'error',{message:e.message})}return
-    }
-  });
-  ws.on('close',()=>{
-    const code=ws.room,room=rooms.get(code);if(!room)return;
-    if(room.players.length>1)destroyRoom(code,'Opponent disconnected. Room closed.');else destroyRoom(code)
-  });
-});
-
-server.listen(process.env.PORT||3000,()=>console.log(`CHIMPIONS Arena on http://localhost:${process.env.PORT||3000}`));
