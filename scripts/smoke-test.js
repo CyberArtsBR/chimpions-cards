@@ -54,6 +54,11 @@ try{
   assert.equal(home.status,200);
   assert.match(await home.text(),/CHIMPIONS/i);
 
+  const headerLogo=await fetch(`${base}/ui/logo-header.svg`);
+  assert.equal(headerLogo.status,200);
+  assert.match(headerLogo.headers.get('content-type')||'',/image\/svg\+xml/i);
+  assert.match(await headerLogo.text(),/viewBox="0 0 76 45"/);
+
   const battleTheme=await fetch(`${base}/audio/battle-theme.mp3`);
   assert.equal(battleTheme.status,200);
   assert.match(battleTheme.headers.get('content-type')||'',/audio\/mpeg/i);
@@ -91,11 +96,11 @@ try{
   a=client();b=client();
   await Promise.all([waitOpen(a.ws),waitOpen(b.ws)]);
 
-  // Even legacy clients requesting Classic are forced onto the single Tactical ruleset.
-  a.ws.send(JSON.stringify({type:'create',mode:'classic'}));
+  // A new Arena mode must survive the complete room handshake.
+  a.ws.send(JSON.stringify({type:'create',mode:'wager'}));
   const room=await take(a,'room');
   assert.match(room.code,/^[A-Z]{4}$/);
-  assert.equal(room.mode,'tactical');
+  assert.equal(room.mode,'wager');
 
   b.ws.send(JSON.stringify({type:'join',code:room.code}));
   const [readyA,readyB]=await Promise.all([take(a,'ready'),take(b,'ready')]);
@@ -104,16 +109,18 @@ try{
 
   const [stateA,stateB]=await Promise.all([take(a,'state'),take(b,'state')]);
   for(const state of [stateA,stateB]){
-    assert.equal(state.mode,'tactical');
+    assert.equal(state.mode,'wager');
     assert.equal(typeof state.turn,'boolean');
     assert.ok(state.card?.name);
-    assert.deepEqual(state.counts,[6,6]);
+    assert.deepEqual(state.counts,[8,8]);
     assert.ok(Array.isArray(state.legal)&&state.legal.length>0);
+    assert.deepEqual(state.legalWagers,[1,2,3]);
+    assert.equal(state.phase,'choose');
     assert.ok(state.deadline>Date.now());
   }
   assert.notEqual(stateA.turn,stateB.turn);
 
-  console.log('Production smoke test passed: HTTP, health, battle-theme audio, 221-card manifest, and 1v1 WebSocket room handshake.');
+  console.log('Production smoke test passed: HTTP, header logo, audio/video, 221-card manifest, and six-mode 1v1 room handshake.');
 }finally{
   for(const c of [a,b])try{c?.ws?.close()}catch{}
   child.kill('SIGTERM');
