@@ -199,7 +199,7 @@ function heroCards(){
 function menu(){
   screen='menu';
   const meta=modeMeta(selectedMode);
-  app.innerHTML=nav()+`<main class="hero arena-home">${backgroundVideo('home')}<div class="hero-copy"><div class="eyebrow">${cards.length} CHIMPIONS. SIX WAYS TO BATTLE.</div><h1 class="premium-title">The Chimpions<span>Arena</span></h1><p class="hero-tagline">Pick your rules. Read your rival. Own the arena.</p><div class="play-panel"><div class="panel-heading"><span>CHOOSE YOUR MODE</span><small>CPU is always Expert</small></div>${modePickerHtml(selectedMode)}<div class="expert-lock"><span>🤖</span><b>EXPERT CPU</b><small>Maximum decision strength in every CPU mode.</small></div><div class="actions"><button class="primary" id="quick">Play ${meta.icon} ${meta.name} vs CPU <span aria-hidden="true">↗</span></button><button class="secondary" id="onlineBtn">Private 1v1</button></div><small class="play-note">Each mode changes the actual rules — not just the presentation.</small></div></div><div class="hero-card-showcase" aria-hidden="true"><div class="home-card-wall">${heroCards()}</div><div class="hero-glow"></div><div class="showcase-caption">BATTLE-READY CHIMPIONS • FULL ATTRIBUTES</div></div></main>${footer()}`;
+  app.innerHTML=nav()+`<main class="hero arena-home">${backgroundVideo('home')}<div class="hero-copy"><h1 class="premium-title">The Chimpions<span>Arena</span></h1><div class="play-panel"><div class="panel-heading"><span>CHOOSE YOUR MODE</span><small>CPU is always Expert</small></div>${modePickerHtml(selectedMode)}<div class="actions"><button class="primary" id="quick">Play ${meta.icon} ${meta.name} vs CPU <span aria-hidden="true">↗</span></button><button class="secondary" id="onlineBtn">Private 1v1</button></div><small class="play-note">Each mode changes the actual rules — not just the presentation.</small></div></div><div class="hero-card-showcase" aria-hidden="true"><div class="home-card-wall">${heroCards()}</div><div class="hero-glow"></div><div class="showcase-caption">BATTLE-READY CHIMPIONS • FULL ATTRIBUTES</div></div></main>${footer()}`;
   prefs.difficulty=CPU_DIFFICULTIES.expert;localStorage.setItem('chimpions:difficulty',CPU_DIFFICULTIES.expert);
   document.querySelectorAll('[name="mode"]').forEach(input=>input.onchange=()=>{selectedMode=input.value;localStorage.setItem('chimpions:mode',selectedMode);const m=modeMeta(selectedMode);$('#quick').innerHTML=`Play ${m.icon} ${m.name} vs CPU <span aria-hidden="true">↗</span>`});
   $('#quick').onclick=()=>{ensureAudio();sfx('ui');start(currentMode())};$('#onlineBtn').onclick=()=>{ensureAudio();sfx('ui');cleanup();online(currentMode())};bindNav()
@@ -360,7 +360,7 @@ function modeBattlePanel(g,{canChoose=false,humanCanBan=false}={}){
     return base+`<span class="mode-hint">${g.bannedAttribute?`🚫 ${g.bannedAttribute} is banned this round.`:'Defender is choosing an attribute ban.'}</span></div>`
   }
   if(g.mode===MODES.triple){
-    const controls=canChoose?`<div class="triple-control"><small>SELECT 3 ATTRIBUTES • ${selectedTriple.length}/3</small><button id="tripleLock" ${selectedTriple.length===3?'':'disabled'}>⚔️ LOCK TRIPLE</button></div>`:'<span class="mode-hint">Best of three attribute clashes wins the round.</span>';
+    const controls=canChoose?`<div class="triple-control"><small>SELECT 3 ATTRIBUTES • ${selectedTriple.length}/3</small></div>`:'<span class="mode-hint">Best of three attribute clashes wins the round.</span>';
     return base+controls+'</div>'
   }
   if(g.mode===MODES.survivor)return base+`<span class="mode-hint">☠️ Eliminated — You ${g.eliminated[0].length} · CPU ${g.eliminated[1].length}. Winner stays.</span></div>`;
@@ -382,13 +382,14 @@ function chooseBan(attribute){
 }
 function toggleTriple(attribute){
   if(!game||game.mode!==MODES.triple||game.phase!=='choose'||game.active!==0)return;
-  if(selectedTriple.includes(attribute))selectedTriple=selectedTriple.filter(a=>a!==attribute);
-  else if(selectedTriple.length<3)selectedTriple=[...selectedTriple,attribute];
+  if(selectedTriple.includes(attribute)){
+    selectedTriple=selectedTriple.filter(a=>a!==attribute);
+    sfx('select');renderBattle();return
+  }
+  if(selectedTriple.length>=3)return;
+  selectedTriple=[...selectedTriple,attribute];
+  if(selectedTriple.length===3){choose([...selectedTriple]);return}
   sfx('select');renderBattle()
-}
-function lockTriple(){
-  if(selectedTriple.length!==3)return;
-  choose([...selectedTriple])
 }
 function renderBattle(){
   if(!game)return menu();if(game.finished)return finish();
@@ -417,7 +418,6 @@ function renderBattle(){
   if(humanCanBan)document.querySelectorAll('[data-ban]').forEach(b=>b.onclick=()=>chooseBan(b.dataset.ban));
   if(canChoose)document.querySelectorAll('[data-stat]').forEach(b=>b.onclick=()=>game.mode===MODES.triple?toggleTriple(b.dataset.stat):choose(b.dataset.stat));
   document.querySelectorAll('[data-wager]').forEach(b=>b.onclick=()=>{selectedWager=Number(b.dataset.wager);sfx('select');renderBattle()});
-  $('#tripleLock')?.addEventListener('click',lockTriple);
   const sw=$('#swap');if(sw)bindSwapPreview(sw,doSwap);
   const next=$('#continueRound');if(next)next.onclick=continueRound;bindBattleKeys({canChoose:canChoose&&game.mode!==MODES.triple,reveal,online:false});
   preload(game.decks[0][1]?.image);preload(game.decks[1][1]?.image)
@@ -533,14 +533,21 @@ function netModePanel(m,{canChoose=false,humanCanBan=false}={}){
     if(humanCanBan)return base+`<div class="ban-control"><small>BAN ONE ATTRIBUTE BEFORE YOUR RIVAL CHOOSES</small><div>${ATTRIBUTES.map(a=>`<button data-net-ban="${a}" class="attr-${attrSlug(a)}">${attrIcon(a)} ${a}</button>`).join('')}</div></div></div>`;
     return base+`<span class="mode-hint">${m.bannedAttribute?`🚫 ${m.bannedAttribute} is banned this round.`:'Defender is choosing an attribute ban.'}</span></div>`
   }
-  if(m.mode===MODES.triple)return base+(canChoose?`<div class="triple-control"><small>SELECT 3 ATTRIBUTES • ${selectedTriple.length}/3</small><button id="netTripleLock" ${selectedTriple.length===3?'':'disabled'}>⚔️ LOCK TRIPLE</button></div>`:'<span class="mode-hint">Best of three attribute clashes wins the round.</span>')+'</div>';
+  if(m.mode===MODES.triple)return base+(canChoose?`<div class="triple-control"><small>SELECT 3 ATTRIBUTES • ${selectedTriple.length}/3</small></div>`:'<span class="mode-hint">Best of three attribute clashes wins the round.</span>')+'</div>';
   if(m.mode===MODES.survivor)return base+`<span class="mode-hint">☠️ Eliminated — You ${m.eliminated?.[0]||0} · Rival ${m.eliminated?.[1]||0}. Winner stays.</span></div>`;
   if(m.mode===MODES.chaos&&m.chaos)return base+`<span class="chaos-modifier"><i>${m.chaos.icon}</i><b>${m.chaos.label}</b><small>${m.chaos.description}</small></span></div>`;
   return base+'</div>'
 }
 function toggleNetTriple(m,attribute){
-  if(selectedTriple.includes(attribute))selectedTriple=selectedTriple.filter(a=>a!==attribute);
-  else if(selectedTriple.length<3)selectedTriple=[...selectedTriple,attribute];
+  if(selectedTriple.includes(attribute)){
+    selectedTriple=selectedTriple.filter(a=>a!==attribute);
+    sfx('select');netBattle(m);return
+  }
+  if(selectedTriple.length>=3)return;
+  selectedTriple=[...selectedTriple,attribute];
+  if(selectedTriple.length===3){
+    sfx('select');sendWs({type:'action',action:[...selectedTriple]});return
+  }
   sfx('select');netBattle(m)
 }
 function netBattle(m){
@@ -561,7 +568,6 @@ function netBattle(m){
     sfx('select');sendWs({type:'action',action:b.dataset.stat,wager:m.mode===MODES.wager?selectedWager:1})
   });
   document.querySelectorAll('[data-net-wager]').forEach(b=>b.onclick=()=>{selectedWager=Number(b.dataset.netWager);sfx('select');netBattle(m)});
-  $('#netTripleLock')?.addEventListener('click',()=>{if(selectedTriple.length===3){sfx('select');sendWs({type:'action',action:[...selectedTriple]})}});
   const sw=$('#netSwap');if(sw)bindSwapPreview(sw,()=>sendWs({type:'swap'}));bindBattleKeys({canChoose:canChoose&&m.mode!==MODES.triple,reveal:false,online:true});startDeadline(m.deadline)
 }
 function netReveal(m){
