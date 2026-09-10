@@ -1,6 +1,6 @@
 import {
-  ATTRIBUTES,MODES,CPU_DIFFICULTIES,createMatch,legalAttributes,resolveRound,advanceMatch,finishMatch,
-  reserveSwap,chooseCpuAttribute,attributeWinRate,decorateCards,validateCollection
+  ATTRIBUTES,MODES,MODE_META,CPU_DIFFICULTIES,createMatch,legalAttributes,legalWagers,resolveRound,advanceMatch,finishMatch,
+  reserveSwap,setBan,chooseCpuAttribute,chooseCpuAttributes,chooseCpuBan,chooseCpuWager,attributeWinRate,decorateCards,validateCollection
 } from './engine.js';
 
 const $=s=>document.querySelector(s),app=$('#app');
@@ -15,6 +15,8 @@ const prefs={
   motion:localStorage.getItem('chimpions:motion')||'auto'
 };
 let audioCtx=null,battleTrack=null,battleMusicUnlockArmed=false,roundAdvanceTimer=null,cpuDifficulty=prefs.difficulty,battleIntroPending=false;
+let selectedMode=Object.values(MODES).includes(localStorage.getItem('chimpions:mode'))?localStorage.getItem('chimpions:mode'):MODES.tactical;
+let selectedTriple=[],selectedWager=1;
 
 const placeholder=`data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600"><rect width="600" height="600" fill="#111527"/><circle cx="300" cy="260" r="120" fill="#242b45"/><text x="300" y="300" text-anchor="middle" font-family="sans-serif" font-size="128" font-weight="800" fill="#c8ff42">C</text><text x="300" y="450" text-anchor="middle" font-family="sans-serif" font-size="28" fill="#aeb5cc">CHIMPION</text></svg>`)}`;
 
@@ -146,7 +148,8 @@ function crest(){return `<svg class="arena-crest" viewBox="0 0 100 110" aria-hid
 function settingsMarkup(){return `<button class="settings-open" aria-haspopup="dialog">Settings</button><dialog id="settingsDialog" aria-labelledby="settingsTitle"><button class="close" aria-label="Close settings">×</button><small class="eyebrow">MAKE IT YOUR ARENA</small><h2 id="settingsTitle">Settings</h2><div class="settings-options"><div><span>Music</span><button class="audio-toggle" id="musicToggle" aria-label="Toggle music"></button></div><div><span>Sound effects</span><button class="audio-toggle" id="sfxToggle" aria-label="Toggle sound effects"></button></div><div><span>Animation</span><button class="motion-toggle" id="motionToggle" aria-label="Cycle motion preference"></button></div>${screen==='battle'?'<div><span>Round pace</span><button class="pace-toggle" id="paceToggle" aria-label="Toggle reveal pace"></button></div>':''}</div><p>Motion follows your device in Auto mode. Reduced motion uses a still arena background.</p></dialog>`}
 function nav(){
   const battle=screen==='battle'||screen==='online';
-  return `<${battle?'div class="battle-topbar"':'header'}><button class="brand" data-go="menu" aria-label="Champions Arena home">${battle?'<b>CHAMPIONS ARENA</b>':'<b>CHIMPIONS</b><span>ARENA</span>'}</button>${battle?'':officialLinks(true)}<nav>${battle?'<button data-go="menu">Main menu</button>':'<button data-go="menu">Play</button><button data-go="gallery">Collection</button><button data-go="help">How to play</button>'}${settingsMarkup()}</nav></${battle?'div':'header'}>`
+  const brand=battle?'<b>CHAMPIONS ARENA</b>':screen==='menu'?'<img class="brand-logo-img" src="/ui/logo-header.svg" alt="Chimpions">':'<b>CHIMPIONS</b><span>ARENA</span>';
+  return `<${battle?'div class="battle-topbar"':'header'}><button class="brand" data-go="menu" aria-label="Champions Arena home">${brand}</button>${battle?'':officialLinks(true)}<nav>${battle?'<button data-go="menu">Main menu</button>':'<button data-go="menu">Play</button><button data-go="gallery">Collection</button><button data-go="help">How to play</button>'}${settingsMarkup()}</nav></${battle?'div':'header'}>`
 }
 function footer(){return `<footer class="site-footer"><span>THE CHIMPIONS ARENA <small>Collect your edge. Own the duel.</small></span>${officialLinks(true)}</footer>`}
 function bindNav(){
@@ -168,8 +171,12 @@ function bindCardTilt(){
   })
 }
 function preload(url){if(!url)return;const i=new Image();i.src=url}
-function currentMode(){return MODES.tactical}
+function currentMode(){return document.querySelector('[name="mode"]:checked')?.value||selectedMode||MODES.tactical}
 function currentDifficulty(){return CPU_DIFFICULTIES.expert}
+function modeMeta(mode){return MODE_META[mode]||MODE_META[MODES.tactical]}
+function modePickerHtml(selected=selectedMode,compact=false){
+  return `<fieldset class="mode-picker mode-grid ${compact?'compact':''}"><legend>${compact?'Choose room mode':'Choose a mode'}</legend>${Object.values(MODES).map(mode=>{const meta=modeMeta(mode);return `<label class="mode-option mode-${mode}"><input type="radio" name="mode" value="${mode}" ${mode===selected?'checked':''}><span><i>${meta.icon}</i><b>${meta.name}</b><small>${meta.tagline}</small><em>${meta.description}</em></span></label>`}).join('')}</fieldset>`
+}
 const ATTRIBUTE_UI={
   Power:{short:'PWR',path:'M13 2 5 13h6l-1 9 9-13h-6z'},
   Agility:{short:'AGI',path:'M4 12h14m-5-5 5 5-5 5M5 7h4M5 17h4'},
