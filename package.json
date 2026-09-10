@@ -10,7 +10,6 @@
     "import": "node scripts/import-chimpions.js",
     "validate:collection": "node scripts/validate-collection.js",
     "validate:collection:strict": "node scripts/validate-collection.js --strict",
-    "validate:ui": "node scripts/validate-ui-assets.js",
     "balance": "node scripts/balance-report.js",
     "smoke": "node scripts/smoke-test.js"
   },

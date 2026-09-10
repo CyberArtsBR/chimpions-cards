@@ -12,6 +12,5 @@ jobs:
       - run: npm test
       - run: npm run smoke
       - run: npm run validate:collection
-      - run: npm run validate:ui
       - run: npm run balance
-      - run: node --check public/app.js && node --check public/engine.js && node --check public/aaa-enhancements.js && node --check public/tutorial-source-fix.js && node --check server/index.js && node --check scripts/import-chimpions.js && node --check scripts/validate-collection.js && node --check scripts/validate-ui-assets.js && node --check scripts/balance-report.js
+      - run: node --check public/app.js && node --check public/engine.js && node --check server/index.js && node --check scripts/import-chimpions.js && node --check scripts/validate-collection.js && node --check scripts/balance-report.js

@@ -1,32 +1,123 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1470" role="img" aria-labelledby="title desc">
-  <title id="title">Chimpions Arena opponent card back</title>
-  <desc id="desc">Premium neon arena card back reading Opponent Card — Revealed After Lock-in.</desc>
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#03142d"/><stop offset=".36" stop-color="#07113b"/><stop offset=".68" stop-color="#1b0c42"/><stop offset="1" stop-color="#2e073c"/></linearGradient>
-    <linearGradient id="cyanPink" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#4eeaff"/><stop offset=".47" stop-color="#bd9dff"/><stop offset="1" stop-color="#ff4bd4"/></linearGradient>
-    <linearGradient id="chrome" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e9fbff"/><stop offset=".09" stop-color="#5d7899"/><stop offset=".2" stop-color="#0b1730"/><stop offset=".48" stop-color="#253f63"/><stop offset=".69" stop-color="#bdcce0"/><stop offset=".8" stop-color="#324865"/><stop offset="1" stop-color="#071124"/></linearGradient>
-    <radialGradient id="floor" cx="50%" cy="25%" r="75%"><stop offset="0" stop-color="#6f49ff" stop-opacity=".44"/><stop offset=".38" stop-color="#181d55" stop-opacity=".16"/><stop offset="1" stop-color="#020713" stop-opacity="0"/></radialGradient>
-    <pattern id="grid" width="72" height="72" patternUnits="userSpaceOnUse"><path d="M72 0H0V72" fill="none" stroke="#94caff" stroke-opacity=".08" stroke-width="2"/><path d="M0 36H72M36 0V72" fill="none" stroke="#ff5bd8" stroke-opacity=".035" stroke-width="1"/></pattern>
-    <pattern id="pixels" width="80" height="80" patternUnits="userSpaceOnUse"><rect width="20" height="20" x="0" y="0" fill="#34dfff" opacity=".055"/><rect width="20" height="20" x="40" y="40" fill="#ff3bd0" opacity=".055"/></pattern>
-    <filter id="cyanGlow" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="13" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-    <filter id="pinkGlow" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="15" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-    <filter id="soft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="35"/></filter>
-    <clipPath id="innerClip"><rect x="70" y="70" width="860" height="1330" rx="54"/></clipPath>
-  </defs>
-  <rect x="18" y="18" width="964" height="1434" rx="72" fill="#020713" stroke="#0a1831" stroke-width="18"/>
-  <rect x="31" y="31" width="938" height="1408" rx="66" fill="none" stroke="url(#chrome)" stroke-width="24"/>
-  <rect x="49" y="49" width="902" height="1372" rx="60" fill="#050a18" stroke="#8ea9c7" stroke-width="3"/>
-  <rect x="62" y="62" width="876" height="1346" rx="54" fill="url(#bg)" stroke="url(#cyanPink)" stroke-width="5"/>
-  <rect x="75" y="75" width="850" height="1320" rx="48" fill="none" stroke="#d8f6ff" stroke-opacity=".22" stroke-width="2"/>
-  <g clip-path="url(#innerClip)">
-    <rect x="70" y="70" width="860" height="1330" fill="url(#bg)"/><rect x="70" y="70" width="860" height="1330" fill="url(#grid)"/><rect x="70" y="70" width="860" height="1330" fill="url(#pixels)"/>
-    <ellipse cx="220" cy="400" rx="235" ry="430" fill="#06caff" opacity=".12" filter="url(#soft)"/><ellipse cx="805" cy="470" rx="260" ry="450" fill="#ff2fc8" opacity=".12" filter="url(#soft)"/><ellipse cx="500" cy="970" rx="430" ry="530" fill="url(#floor)"/>
-    <g opacity=".62"><path d="M120 415H250V215H345V415M655 415V215H750V415H880" fill="none" stroke="#27ddff" stroke-width="13" filter="url(#cyanGlow)"/><path d="M120 415H250V215H345V415" fill="none" stroke="#62efff" stroke-width="5"/><path d="M655 415V215H750V415H880" fill="none" stroke="#ff4dd5" stroke-width="13" filter="url(#pinkGlow)"/><path d="M655 415V215H750V415H880" fill="none" stroke="#ff83e5" stroke-width="5"/><path d="M350 415V320H650V415" fill="none" stroke="url(#cyanPink)" stroke-width="11"/><path d="M395 415V355H605V415" fill="none" stroke="#d9b8ff" stroke-opacity=".7" stroke-width="4"/></g>
-    <g transform="translate(128 130)"><path d="M0 0H145V310L72.5 370 0 310Z" fill="#062653" stroke="#35ddff" stroke-width="5"/><path d="M28 44 72 20l44 24v62l-44 33-44-33Z" fill="none" stroke="#66edff" stroke-width="7"/><circle cx="52" cy="77" r="9" fill="#66edff"/><circle cx="92" cy="77" r="9" fill="#66edff"/><path d="M50 106h44" stroke="#66edff" stroke-width="9"/><path d="M40 20 72 4l32 16" fill="none" stroke="#66edff" stroke-width="7"/></g>
-    <g transform="translate(727 130)"><path d="M0 0H145V310L72.5 370 0 310Z" fill="#4c0b59" stroke="#ff53d6" stroke-width="5"/><path d="M28 44 72 20l44 24v62l-44 33-44-33Z" fill="none" stroke="#ff82e4" stroke-width="7"/><circle cx="52" cy="77" r="9" fill="#ff82e4"/><circle cx="92" cy="77" r="9" fill="#ff82e4"/><path d="M50 106h44" stroke="#ff82e4" stroke-width="9"/><path d="M40 20 72 4l32 16" fill="none" stroke="#ff82e4" stroke-width="7"/></g>
-    <g text-anchor="middle" font-family="ui-monospace,Consolas,'Courier New',monospace" font-weight="900"><text x="500" y="505" font-size="62" fill="#f4fbff" stroke="#06142b" stroke-width="12" paint-order="stroke">THE CHIMPIONS</text><text x="500" y="573" font-size="78" fill="url(#cyanPink)" stroke="#07112a" stroke-width="13" paint-order="stroke" letter-spacing="5">ARENA</text></g>
-    <g transform="translate(500 745)"><circle r="174" fill="#060c27" fill-opacity=".72" stroke="#7b5cff" stroke-opacity=".35" stroke-width="4"/><circle r="143" fill="none" stroke="url(#cyanPink)" stroke-width="8" stroke-dasharray="150 50 80 70" filter="url(#cyanGlow)"/><circle r="112" fill="none" stroke="#d7c4ff" stroke-opacity=".18" stroke-width="2"/><path d="M0-78 38-38 78 0 38 38 0 78-38 38-78 0-38-38Z" fill="#091936" stroke="url(#cyanPink)" stroke-width="8"/><path d="M0-42 22-22 42 0 22 22 0 42-22 22-42 0-22-22Z" fill="none" stroke="#f2fbff" stroke-width="9"/><path d="M-230 0h96M134 0h96" stroke="url(#cyanPink)" stroke-width="7"/><rect x="-13" y="-13" width="26" height="26" fill="#fff" opacity=".92"/></g>
-    <g font-family="ui-monospace,Consolas,'Courier New',monospace" text-anchor="middle" font-weight="900"><rect x="160" y="965" width="680" height="115" rx="14" fill="#050b1d" fill-opacity=".8" stroke="url(#cyanPink)" stroke-width="4"/><text x="500" y="1044" font-size="67" fill="#f5fbff" stroke="#25113d" stroke-width="8" paint-order="stroke" letter-spacing="4">OPPONENT CARD</text><path d="M190 1118H410M590 1118H810" stroke="url(#cyanPink)" stroke-width="5"/><path d="M500 1098l20 20-20 20-20-20Z" fill="#0a1830" stroke="#d9f7ff" stroke-width="5"/><text x="500" y="1192" font-size="34" fill="#d7e9ff" letter-spacing="3">REVEALED AFTER LOCK-IN</text></g>
-    <g opacity=".23"><path d="M120 1390 400 1040M880 1390 600 1040M300 1390 445 1040M700 1390 555 1040" stroke="url(#cyanPink)" stroke-width="3"/><path d="M100 1260H900M130 1320H870M170 1370H830" stroke="#7ea9e9" stroke-opacity=".25" stroke-width="3"/><rect x="170" y="1280" width="55" height="55" fill="#27dfff"/><rect x="225" y="1335" width="55" height="55" fill="#27dfff"/><rect x="775" y="1280" width="55" height="55" fill="#ff47d1"/><rect x="720" y="1335" width="55" height="55" fill="#ff47d1"/></g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1536" width="1024" height="1536" role="img" aria-label="The Chimpions Arena opponent card">
+<defs>
+  <linearGradient id="frame" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#51647d"/><stop offset=".18" stop-color="#111b2d"/><stop offset=".52" stop-color="#050a14"/><stop offset=".82" stop-color="#1a2940"/><stop offset="1" stop-color="#6f8198"/></linearGradient>
+  <linearGradient id="neon" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#06c9ff"/><stop offset=".47" stop-color="#f4f6ff"/><stop offset=".55" stop-color="#bf7aff"/><stop offset="1" stop-color="#ff20df"/></linearGradient>
+  <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#13164d"/><stop offset=".38" stop-color="#080d32"/><stop offset="1" stop-color="#030817"/></linearGradient>
+  <radialGradient id="centerGlow"><stop stop-color="#8d5cff" stop-opacity=".55"/><stop offset=".48" stop-color="#4029c9" stop-opacity=".12"/><stop offset="1" stop-color="#050817" stop-opacity="0"/></radialGradient>
+  <filter id="cyanGlow" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="10" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  <filter id="softGlow" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  <clipPath id="inner"><rect x="58" y="52" width="908" height="1432" rx="42"/></clipPath>
+  <pattern id="grid" width="70" height="70" patternUnits="userSpaceOnUse"><path d="M70 0H0V70" fill="none" stroke="#7aa8ff" stroke-opacity=".09" stroke-width="2"/></pattern>
+</defs>
+
+<!-- premium gunmetal shell -->
+<rect x="6" y="6" width="1012" height="1524" rx="70" fill="#02050c" stroke="#02040a" stroke-width="12"/>
+<rect x="18" y="18" width="988" height="1500" rx="62" fill="url(#frame)" stroke="#a9b9cc" stroke-width="3"/>
+<rect x="36" y="36" width="952" height="1464" rx="52" fill="#050a14" stroke="#111b2d" stroke-width="12"/>
+<path d="M70 55H458l54 48 54-48h388l30 32v1362l-30 32H566l-54-48-54 48H70l-30-32V87Z" fill="#020611" stroke="url(#neon)" stroke-width="9"/>
+<path d="M72 74H463l49 45 49-45h391l18 20v1348l-18 20H561l-49-45-49 45H72l-18-20V94Z" fill="#050817" stroke="#7385b8" stroke-opacity=".45" stroke-width="2"/>
+
+<g clip-path="url(#inner)">
+  <!-- dark neon arena -->
+  <rect x="58" y="52" width="908" height="1432" fill="url(#floor)"/>
+  <rect x="58" y="52" width="454" height="1432" fill="#006cff" opacity=".055"/>
+  <rect x="512" y="52" width="454" height="1432" fill="#ff00d9" opacity=".055"/>
+  <ellipse cx="512" cy="795" rx="470" ry="620" fill="url(#centerGlow)"/>
+
+  <!-- back wall blocks -->
+  <g fill="#10164a" stroke="#24317b" stroke-width="2" opacity=".9">
+    <path d="M58 52H966V430H58Z"/>
+    <path d="M72 110H952V380H72Z" fill="#090d2d"/>
   </g>
+  <g opacity=".38" fill="url(#grid)"><rect x="58" y="52" width="908" height="430"/></g>
+
+  <!-- central portal and stairs -->
+  <g>
+    <path d="M392 346h240v118H392z" fill="#030615"/>
+    <path d="M401 354h222v102H401z" fill="#07122f" stroke="url(#neon)" stroke-width="8" filter="url(#softGlow)"/>
+    <path d="M350 462h324l34 39H316z" fill="#10164a"/>
+    <path d="M328 500h368l34 40H294z" fill="#0d133d"/>
+    <path d="M301 541h422l38 45H263z" fill="#0b1034"/>
+    <path d="M270 586h484l40 46H230z" fill="#080d29"/>
+    <path d="M236 632h552l44 50H192z" fill="#070b23"/>
+    <g stroke="url(#neon)" stroke-opacity=".28" stroke-width="3">
+      <path d="M318 498h388"/><path d="M284 539h456"/><path d="M248 584h528"/><path d="M211 630h602"/>
+    </g>
+  </g>
+
+  <!-- neon pillars -->
+  <g filter="url(#softGlow)">
+    <rect x="119" y="122" width="18" height="286" fill="#06cbff"/>
+    <rect x="162" y="170" width="11" height="207" fill="#267bff"/>
+    <rect x="887" y="122" width="18" height="286" fill="#ff24e1"/>
+    <rect x="851" y="170" width="11" height="207" fill="#a82aff"/>
+    <g fill="#ff9b27">
+      <rect x="316" y="237" width="20" height="66" rx="3"/><rect x="688" y="237" width="20" height="66" rx="3"/>
+      <rect x="270" y="348" width="16" height="52" rx="3"/><rect x="738" y="348" width="16" height="52" rx="3"/>
+    </g>
+  </g>
+
+  <!-- banners -->
+  <g>
+    <path d="M118 92h180v248l-90 92-90-92Z" fill="#0c246b" stroke="#1bbfff" stroke-width="8"/>
+    <path d="M135 110h146v220l-73 74-73-74Z" fill="#13277c"/>
+    <path d="M726 92h180v248l-90 92-90-92Z" fill="#5b0e69" stroke="#ff2bdc" stroke-width="8"/>
+    <path d="M743 110h146v220l-73 74-73-74Z" fill="#74106f"/>
+    <!-- crowned chimp icons -->
+    <g fill="#38cfff" transform="translate(164 150)">
+      <path d="M10 30 25 6l19 22L63 6l18 24v18H10Z"/><rect x="15" y="52" width="62" height="52" rx="19"/><rect x="3" y="64" width="18" height="28" rx="8"/><rect x="71" y="64" width="18" height="28" rx="8"/><circle cx="36" cy="73" r="5" fill="#061238"/><circle cx="57" cy="73" r="5" fill="#061238"/><rect x="32" y="88" width="30" height="7" fill="#061238"/>
+    </g>
+    <g fill="#ff3ddd" transform="translate(772 150)">
+      <path d="M10 30 25 6l19 22L63 6l18 24v18H10Z"/><rect x="15" y="52" width="62" height="52" rx="19"/><rect x="3" y="64" width="18" height="28" rx="8"/><rect x="71" y="64" width="18" height="28" rx="8"/><circle cx="36" cy="73" r="5" fill="#27052f"/><circle cx="57" cy="73" r="5" fill="#27052f"/><rect x="32" y="88" width="30" height="7" fill="#27052f"/>
+    </g>
+  </g>
+
+  <!-- reflective floor perspective -->
+  <g opacity=".52" stroke-width="2">
+    <path d="M512 650 75 1482M512 650 202 1482M512 650 328 1482M512 650 449 1482M512 650 575 1482M512 650 696 1482M512 650 822 1482M512 650 949 1482" stroke="url(#neon)"/>
+    <path d="M125 760H899M106 852H918M91 956H933M78 1075H946M68 1214H956M61 1370H963" stroke="#8e7fff" stroke-opacity=".35"/>
+  </g>
+  <g opacity=".23">
+    <path d="M78 1160h80v80H78zM158 1240h80v80h-80zM238 1320h80v80h-80zM318 1400h80v80h-80z" fill="#03c8ff"/>
+    <path d="M946 1160h-80v80h80zM866 1240h-80v80h80zM786 1320h-80v80h80zM706 1400h-80v80h80z" fill="#ff28db"/>
+  </g>
+
+  <!-- title -->
+  <g text-anchor="middle" filter="url(#softGlow)">
+    <text x="512" y="470" font-family="'Courier New',monospace" font-size="83" font-style="italic" font-weight="900" fill="url(#neon)" stroke="#e8f5ff" stroke-opacity=".3" stroke-width="1">The Chimpions</text>
+    <text x="512" y="558" font-family="'Courier New',monospace" font-size="102" font-weight="900" fill="url(#neon)" stroke="#dfefff" stroke-opacity=".3" stroke-width="1">Arena</text>
+  </g>
+  <g stroke="url(#neon)" fill="none" stroke-width="6" filter="url(#softGlow)">
+    <path d="M215 574h112m370 0h112"/>
+    <path d="m340 574 16-16 16 16-16 16Zm312 0 16-16 16 16-16 16Z"/>
+  </g>
+
+  <!-- center reticle -->
+  <g transform="translate(512 785)" filter="url(#softGlow)" fill="none">
+    <circle r="145" stroke="#513ee8" stroke-width="9" opacity=".7"/>
+    <path d="M-130-64a145 145 0 0 1 47-55M83-119a145 145 0 0 1 47 55M130 64a145 145 0 0 1-47 55M-83 119a145 145 0 0 1-47-55" stroke="url(#neon)" stroke-width="9"/>
+    <path d="M-220 0h100M120 0h100" stroke="url(#neon)" stroke-width="6"/>
+    <path d="m-172 0 18-18 18 18-18 18Zm344 0 18-18 18 18-18 18Z" stroke="url(#neon)" stroke-width="6"/>
+    <g fill="url(#neon)" stroke="#fff" stroke-width="2">
+      <rect x="-23" y="-69" width="46" height="46"/><rect x="-69" y="-23" width="46" height="46"/><rect x="-23" y="-23" width="46" height="46"/><rect x="23" y="-23" width="46" height="46"/><rect x="-23" y="23" width="46" height="46"/>
+    </g>
+  </g>
+
+  <!-- opponent text -->
+  <g text-anchor="middle" filter="url(#softGlow)">
+    <text x="512" y="1075" font-family="'Courier New',monospace" font-size="91" font-weight="900" fill="url(#neon)" stroke="#f7fbff" stroke-opacity=".24" stroke-width="2" letter-spacing="-5">OPPONENT CARD</text>
+  </g>
+  <g stroke="url(#neon)" fill="none" stroke-width="6" filter="url(#softGlow)">
+    <path d="M225 1122h205m164 0h205"/>
+    <path d="m512 1099 24 23-24 23-24-23Z"/>
+  </g>
+  <text x="512" y="1198" text-anchor="middle" font-family="'Courier New',monospace" font-size="37" fill="#eaf3ff" letter-spacing="4">Revealed After Lock-In</text>
+</g>
+
+<!-- outer highlights -->
+<path d="M80 55H449" stroke="#17ccff" stroke-width="5" opacity=".95"/>
+<path d="M575 55H944" stroke="#ff22df" stroke-width="5" opacity=".95"/>
+<path d="M80 1481H449" stroke="#17ccff" stroke-width="5" opacity=".95"/>
+<path d="M575 1481H944" stroke="#ff22df" stroke-width="5" opacity=".95"/>
+<g fill="#6b39ff" stroke="#b084ff" stroke-width="2"><path d="m512 32 25 25-25 25-25-25Z"/><path d="m512 1454 25 25-25 25-25-25Z"/></g>
 </svg>
